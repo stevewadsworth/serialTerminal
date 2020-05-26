@@ -1,11 +1,25 @@
 <script>
+    import { onMount } from "svelte";
+	import serial from "./modules/serial"
+	import Terminal from "./Terminal.svelte"
+
 	export let name;
+
+	let ports = [];
+
+    onMount(async function() {
+		ports = await serial.listPorts()
+	})
 </script>
 
 <main>
 	<h1>Hello {name}!</h1>
 	<p>Visit the <a href="https://svelte.dev/tutorial">Svelte tutorial</a> to learn how to build Svelte apps.</p>
+	{#each ports as item}
+		<p>{item.path}</p>
+	{/each}
 </main>
+<Terminal path={'/dev/tty.SLAB_USBtoUART'}/>
 
 <style>
 	main {
