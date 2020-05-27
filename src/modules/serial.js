@@ -20,9 +20,12 @@ export const openPort = (path, baudRate, dataBits, parity, stopBits) => {
 
   const port = new SerialPort(path, openOptions)
   port.pipe(process.stdout)
-  const parser = port.pipe(new Readline({ delimiter: '\n' })) // This works, but only returns data when a full line has been terminated with \n
-
-  return parser
+  return port
 }
 
-export default { listPorts, openPort }
+const addReadlineParser = (port) => {
+  const parser = port.pipe(new Readline({ delimiter: '\n' })) // This works, but only returns data when a full line has been terminated with \n
+  return parser;
+}
+
+export default { listPorts, openPort, addReadlineParser }
