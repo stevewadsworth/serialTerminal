@@ -49,6 +49,20 @@ var app = (function () {
     function space() {
         return text(' ');
     }
+    function empty() {
+        return text('');
+    }
+    function listen(node, event, handler, options) {
+        node.addEventListener(event, handler, options);
+        return () => node.removeEventListener(event, handler, options);
+    }
+    function prevent_default(fn) {
+        return function (event) {
+            event.preventDefault();
+            // @ts-ignore
+            return fn.call(this, event);
+        };
+    }
     function attr(node, attribute, value) {
         if (value == null)
             node.removeAttribute(attribute);
@@ -57,6 +71,19 @@ var app = (function () {
     }
     function children(element) {
         return Array.from(element.childNodes);
+    }
+    function select_option(select, value) {
+        for (let i = 0; i < select.options.length; i += 1) {
+            const option = select.options[i];
+            if (option.__value === value) {
+                option.selected = true;
+                return;
+            }
+        }
+    }
+    function select_value(select) {
+        const selected_option = select.querySelector(':checked') || select.options[0];
+        return selected_option && selected_option.__value;
     }
     function custom_event(type, detail) {
         const e = document.createEvent('CustomEvent');
@@ -97,6 +124,9 @@ var app = (function () {
     }
     function add_render_callback(fn) {
         render_callbacks.push(fn);
+    }
+    function add_flush_callback(fn) {
+        flush_callbacks.push(fn);
     }
     let flushing = false;
     const seen_callbacks = new Set();
@@ -147,6 +177,19 @@ var app = (function () {
     }
     const outroing = new Set();
     let outros;
+    function group_outros() {
+        outros = {
+            r: 0,
+            c: [],
+            p: outros // parent group
+        };
+    }
+    function check_outros() {
+        if (!outros.r) {
+            run_all(outros.c);
+        }
+        outros = outros.p;
+    }
     function transition_in(block, local) {
         if (block && block.i) {
             outroing.delete(block);
@@ -171,6 +214,14 @@ var app = (function () {
     }
 
     const globals = (typeof window !== 'undefined' ? window : global);
+
+    function bind(component, name, callback) {
+        const index = component.$$.props[name];
+        if (index !== undefined) {
+            component.$$.bound[index] = callback;
+            callback(component.$$.ctx[index]);
+        }
+    }
     function create_component(block) {
         block && block.c();
     }
@@ -301,12 +352,29 @@ var app = (function () {
         dispatch_dev("SvelteDOMRemove", { node });
         detach(node);
     }
+    function listen_dev(node, event, handler, options, has_prevent_default, has_stop_propagation) {
+        const modifiers = options === true ? ["capture"] : options ? Array.from(Object.keys(options)) : [];
+        if (has_prevent_default)
+            modifiers.push('preventDefault');
+        if (has_stop_propagation)
+            modifiers.push('stopPropagation');
+        dispatch_dev("SvelteDOMAddEventListener", { node, event, handler, modifiers });
+        const dispose = listen(node, event, handler, options);
+        return () => {
+            dispatch_dev("SvelteDOMRemoveEventListener", { node, event, handler, modifiers });
+            dispose();
+        };
+    }
     function attr_dev(node, attribute, value) {
         attr(node, attribute, value);
         if (value == null)
             dispatch_dev("SvelteDOMRemoveAttribute", { node, attribute });
         else
             dispatch_dev("SvelteDOMSetAttribute", { node, attribute, value });
+    }
+    function prop_dev(node, property, value) {
+        node[property] = value;
+        dispatch_dev("SvelteDOMSetProperty", { node, property, value });
     }
     function set_data_dev(text, data) {
         data = '' + data;
@@ -384,7 +452,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (71:2) {#each rxData as line}
+    // (69:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
     	let t_value = /*line*/ ctx[2] + "";
@@ -394,8 +462,8 @@ var app = (function () {
     		c: function create() {
     			pre = element("pre");
     			t = text(t_value);
-    			attr_dev(pre, "class", "svelte-10ibzxr");
-    			add_location(pre, file, 71, 4, 1479);
+    			attr_dev(pre, "class", "svelte-1r85u9k");
+    			add_location(pre, file, 69, 4, 1429);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
@@ -413,7 +481,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(71:2) {#each rxData as line}",
+    		source: "(69:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -438,8 +506,8 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
-    			attr_dev(div_1, "class", "svelte-10ibzxr");
-    			add_location(div_1, file, 69, 0, 1428);
+    			attr_dev(div_1, "class", "svelte-1r85u9k");
+    			add_location(div_1, file, 67, 0, 1378);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -451,7 +519,7 @@ var app = (function () {
     				each_blocks[i].m(div_1, null);
     			}
 
-    			/*div_1_binding*/ ctx[11](div_1);
+    			/*div_1_binding*/ ctx[7](div_1);
     		},
     		p: function update(ctx, [dirty]) {
     			if (dirty & /*rxData*/ 2) {
@@ -483,7 +551,7 @@ var app = (function () {
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(div_1);
     			destroy_each(each_blocks, detaching);
-    			/*div_1_binding*/ ctx[11](null);
+    			/*div_1_binding*/ ctx[7](null);
     		}
     	};
 
@@ -499,11 +567,7 @@ var app = (function () {
     }
 
     function instance($$self, $$props, $$invalidate) {
-    	let { path = "" } = $$props;
-    	let { baudRate = 115200 } = $$props;
-    	let { dataBits = 8 } = $$props;
-    	let { parity = "none" } = $$props;
-    	let { stopBits = 1 } = $$props;
+    	let { config = {} } = $$props;
     	let { localEcho = true } = $$props;
     	let div;
     	let autoscroll;
@@ -512,7 +576,7 @@ var app = (function () {
     	let line = "";
 
     	onMount(async function () {
-    		const port = serial.openPort(path, baudRate, dataBits, parity, stopBits);
+    		const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
     		const parser = serial.addReadlineParser(port);
 
     		parser.on("data", chunk => {
@@ -552,7 +616,7 @@ var app = (function () {
     		}
     	});
 
-    	const writable_props = ["path", "baudRate", "dataBits", "parity", "stopBits", "localEcho"];
+    	const writable_props = ["config", "localEcho"];
 
     	Object.keys($$props).forEach(key => {
     		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1.warn(`<Terminal> was created with unknown prop '${key}'`);
@@ -565,12 +629,8 @@ var app = (function () {
     	}
 
     	$$self.$set = $$props => {
-    		if ("path" in $$props) $$invalidate(3, path = $$props.path);
-    		if ("baudRate" in $$props) $$invalidate(4, baudRate = $$props.baudRate);
-    		if ("dataBits" in $$props) $$invalidate(5, dataBits = $$props.dataBits);
-    		if ("parity" in $$props) $$invalidate(6, parity = $$props.parity);
-    		if ("stopBits" in $$props) $$invalidate(7, stopBits = $$props.stopBits);
-    		if ("localEcho" in $$props) $$invalidate(8, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
     	};
 
     	$$self.$capture_state = () => ({
@@ -578,11 +638,7 @@ var app = (function () {
     		beforeUpdate,
     		afterUpdate,
     		serial,
-    		path,
-    		baudRate,
-    		dataBits,
-    		parity,
-    		stopBits,
+    		config,
     		localEcho,
     		div,
     		autoscroll,
@@ -594,12 +650,8 @@ var app = (function () {
     	});
 
     	$$self.$inject_state = $$props => {
-    		if ("path" in $$props) $$invalidate(3, path = $$props.path);
-    		if ("baudRate" in $$props) $$invalidate(4, baudRate = $$props.baudRate);
-    		if ("dataBits" in $$props) $$invalidate(5, dataBits = $$props.dataBits);
-    		if ("parity" in $$props) $$invalidate(6, parity = $$props.parity);
-    		if ("stopBits" in $$props) $$invalidate(7, stopBits = $$props.stopBits);
-    		if ("localEcho" in $$props) $$invalidate(8, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
     		if ("div" in $$props) $$invalidate(0, div = $$props.div);
     		if ("autoscroll" in $$props) autoscroll = $$props.autoscroll;
     		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
@@ -611,34 +663,13 @@ var app = (function () {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [
-    		div,
-    		rxData,
-    		line,
-    		path,
-    		baudRate,
-    		dataBits,
-    		parity,
-    		stopBits,
-    		localEcho,
-    		autoscroll,
-    		acc,
-    		div_1_binding
-    	];
+    	return [div, rxData, line, config, localEcho, autoscroll, acc, div_1_binding];
     }
 
     class Terminal extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-
-    		init(this, options, instance, create_fragment, safe_not_equal, {
-    			path: 3,
-    			baudRate: 4,
-    			dataBits: 5,
-    			parity: 6,
-    			stopBits: 7,
-    			localEcho: 8
-    		});
+    		init(this, options, instance, create_fragment, safe_not_equal, { config: 3, localEcho: 4 });
 
     		dispatch_dev("SvelteRegisterComponent", {
     			component: this,
@@ -648,43 +679,11 @@ var app = (function () {
     		});
     	}
 
-    	get path() {
+    	get config() {
     		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
-    	set path(value) {
-    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get baudRate() {
-    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set baudRate(value) {
-    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get dataBits() {
-    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set dataBits(value) {
-    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get parity() {
-    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set parity(value) {
-    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get stopBits() {
-    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set stopBits(value) {
+    	set config(value) {
     		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
@@ -697,36 +696,50 @@ var app = (function () {
     	}
     }
 
-    /* src/App.svelte generated by Svelte v3.19.1 */
-    const file$1 = "src/App.svelte";
+    /* src/DropDown.svelte generated by Svelte v3.19.1 */
+
+    const { console: console_1$1 } = globals;
+    const file$1 = "src/DropDown.svelte";
 
     function get_each_context$1(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[2] = list[i];
+    	child_ctx[3] = list[i];
     	return child_ctx;
     }
 
-    // (18:1) {#each ports as item}
+    // (16:2) {#each items as item}
     function create_each_block$1(ctx) {
-    	let p;
-    	let t_value = /*item*/ ctx[2].path + "";
-    	let t;
+    	let option;
+    	let t0_value = /*item*/ ctx[3] + "";
+    	let t0;
+    	let t1;
+    	let option_value_value;
 
     	const block = {
     		c: function create() {
-    			p = element("p");
-    			t = text(t_value);
-    			add_location(p, file$1, 18, 2, 414);
+    			option = element("option");
+    			t0 = text(t0_value);
+    			t1 = space();
+    			option.__value = option_value_value = /*item*/ ctx[3];
+    			option.value = option.__value;
+    			add_location(option, file$1, 16, 4, 243);
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, p, anchor);
-    			append_dev(p, t);
+    			insert_dev(target, option, anchor);
+    			append_dev(option, t0);
+    			append_dev(option, t1);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*ports*/ 2 && t_value !== (t_value = /*item*/ ctx[2].path + "")) set_data_dev(t, t_value);
+    			if (dirty & /*items*/ 2 && t0_value !== (t0_value = /*item*/ ctx[3] + "")) set_data_dev(t0, t0_value);
+
+    			if (dirty & /*items*/ 2 && option_value_value !== (option_value_value = /*item*/ ctx[3])) {
+    				prop_dev(option, "__value", option_value_value);
+    			}
+
+    			option.value = option.__value;
     		},
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(p);
+    			if (detaching) detach_dev(option);
     		}
     	};
 
@@ -734,7 +747,7 @@ var app = (function () {
     		block,
     		id: create_each_block$1.name,
     		type: "each",
-    		source: "(18:1) {#each ports as item}",
+    		source: "(16:2) {#each items as item}",
     		ctx
     	});
 
@@ -742,20 +755,9 @@ var app = (function () {
     }
 
     function create_fragment$1(ctx) {
-    	let main;
-    	let h1;
-    	let t0;
-    	let t1;
-    	let t2;
-    	let t3;
-    	let p;
-    	let t4;
-    	let a;
-    	let t6;
-    	let t7;
-    	let t8;
-    	let current;
-    	let each_value = /*ports*/ ctx[1];
+    	let select;
+    	let dispose;
+    	let each_value = /*items*/ ctx[1];
     	validate_each_argument(each_value);
     	let each_blocks = [];
 
@@ -763,69 +765,33 @@ var app = (function () {
     		each_blocks[i] = create_each_block$1(get_each_context$1(ctx, each_value, i));
     	}
 
-    	const terminal = new Terminal({
-    			props: { path: "/dev/tty.SLAB_USBtoUART" },
-    			$$inline: true
-    		});
-
     	const block = {
     		c: function create() {
-    			main = element("main");
-    			h1 = element("h1");
-    			t0 = text("Hello ");
-    			t1 = text(/*name*/ ctx[0]);
-    			t2 = text("!");
-    			t3 = space();
-    			p = element("p");
-    			t4 = text("Visit the ");
-    			a = element("a");
-    			a.textContent = "Svelte tutorial";
-    			t6 = text(" to learn how to build Svelte apps.");
-    			t7 = space();
+    			select = element("select");
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
 
-    			t8 = space();
-    			create_component(terminal.$$.fragment);
-    			attr_dev(h1, "class", "svelte-2x1evt");
-    			add_location(h1, file$1, 15, 1, 255);
-    			attr_dev(a, "href", "https://svelte.dev/tutorial");
-    			add_location(a, file$1, 16, 14, 292);
-    			add_location(p, file$1, 16, 1, 279);
-    			attr_dev(main, "class", "svelte-2x1evt");
-    			add_location(main, file$1, 14, 0, 247);
+    			if (/*value*/ ctx[0] === void 0) add_render_callback(() => /*select_change_handler*/ ctx[2].call(select));
+    			add_location(select, file$1, 14, 0, 187);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, main, anchor);
-    			append_dev(main, h1);
-    			append_dev(h1, t0);
-    			append_dev(h1, t1);
-    			append_dev(h1, t2);
-    			append_dev(main, t3);
-    			append_dev(main, p);
-    			append_dev(p, t4);
-    			append_dev(p, a);
-    			append_dev(p, t6);
-    			append_dev(main, t7);
+    			insert_dev(target, select, anchor);
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(main, null);
+    				each_blocks[i].m(select, null);
     			}
 
-    			insert_dev(target, t8, anchor);
-    			mount_component(terminal, target, anchor);
-    			current = true;
+    			select_option(select, /*value*/ ctx[0]);
+    			dispose = listen_dev(select, "change", /*select_change_handler*/ ctx[2]);
     		},
     		p: function update(ctx, [dirty]) {
-    			if (!current || dirty & /*name*/ 1) set_data_dev(t1, /*name*/ ctx[0]);
-
-    			if (dirty & /*ports*/ 2) {
-    				each_value = /*ports*/ ctx[1];
+    			if (dirty & /*items*/ 2) {
+    				each_value = /*items*/ ctx[1];
     				validate_each_argument(each_value);
     				let i;
 
@@ -837,7 +803,7 @@ var app = (function () {
     					} else {
     						each_blocks[i] = create_each_block$1(child_ctx);
     						each_blocks[i].c();
-    						each_blocks[i].m(main, null);
+    						each_blocks[i].m(select, null);
     					}
     				}
 
@@ -847,21 +813,17 @@ var app = (function () {
 
     				each_blocks.length = each_value.length;
     			}
+
+    			if (dirty & /*value*/ 1) {
+    				select_option(select, /*value*/ ctx[0]);
+    			}
     		},
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(terminal.$$.fragment, local);
-    			current = true;
-    		},
-    		o: function outro(local) {
-    			transition_out(terminal.$$.fragment, local);
-    			current = false;
-    		},
+    		i: noop,
+    		o: noop,
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(main);
+    			if (detaching) detach_dev(select);
     			destroy_each(each_blocks, detaching);
-    			if (detaching) detach_dev(t8);
-    			destroy_component(terminal, detaching);
+    			dispose();
     		}
     	};
 
@@ -877,45 +839,58 @@ var app = (function () {
     }
 
     function instance$1($$self, $$props, $$invalidate) {
-    	let { name } = $$props;
-    	let ports = [];
+    	let { items = [] } = $$props;
+    	let { value } = $$props;
 
     	onMount(async function () {
-    		$$invalidate(1, ports = await serial.listPorts());
+    		console.log(items);
     	});
 
-    	const writable_props = ["name"];
+    	const writable_props = ["items", "value"];
 
     	Object.keys($$props).forEach(key => {
-    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console.warn(`<App> was created with unknown prop '${key}'`);
+    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1$1.warn(`<DropDown> was created with unknown prop '${key}'`);
     	});
 
+    	function select_change_handler() {
+    		value = select_value(this);
+    		$$invalidate(0, value);
+    		$$invalidate(1, items);
+    	}
+
     	$$self.$set = $$props => {
-    		if ("name" in $$props) $$invalidate(0, name = $$props.name);
+    		if ("items" in $$props) $$invalidate(1, items = $$props.items);
+    		if ("value" in $$props) $$invalidate(0, value = $$props.value);
     	};
 
-    	$$self.$capture_state = () => ({ onMount, serial, Terminal, name, ports });
+    	$$self.$capture_state = () => ({ onMount, items, value, console });
 
     	$$self.$inject_state = $$props => {
-    		if ("name" in $$props) $$invalidate(0, name = $$props.name);
-    		if ("ports" in $$props) $$invalidate(1, ports = $$props.ports);
+    		if ("items" in $$props) $$invalidate(1, items = $$props.items);
+    		if ("value" in $$props) $$invalidate(0, value = $$props.value);
     	};
 
     	if ($$props && "$$inject" in $$props) {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [name, ports];
+    	$$self.$$.update = () => {
+    		if ($$self.$$.dirty & /*items*/ 2) {
+    			 console.log(items);
+    		}
+    	};
+
+    	return [value, items, select_change_handler];
     }
 
-    class App extends SvelteComponentDev {
+    class DropDown extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, { name: 0 });
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, { items: 1, value: 0 });
 
     		dispatch_dev("SvelteRegisterComponent", {
     			component: this,
-    			tagName: "App",
+    			tagName: "DropDown",
     			options,
     			id: create_fragment$1.name
     		});
@@ -923,17 +898,724 @@ var app = (function () {
     		const { ctx } = this.$$;
     		const props = options.props || {};
 
-    		if (/*name*/ ctx[0] === undefined && !("name" in props)) {
-    			console.warn("<App> was created without expected prop 'name'");
+    		if (/*value*/ ctx[0] === undefined && !("value" in props)) {
+    			console_1$1.warn("<DropDown> was created without expected prop 'value'");
     		}
     	}
 
-    	get name() {
-    		throw new Error("<App>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	get items() {
+    		throw new Error("<DropDown>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
-    	set name(value) {
-    		throw new Error("<App>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	set items(value) {
+    		throw new Error("<DropDown>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get value() {
+    		throw new Error("<DropDown>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set value(value) {
+    		throw new Error("<DropDown>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+    }
+
+    /* src/ConfigureTerminal.svelte generated by Svelte v3.19.1 */
+
+    const { console: console_1$2 } = globals;
+    const file$2 = "src/ConfigureTerminal.svelte";
+
+    function create_fragment$2(ctx) {
+    	let form;
+    	let button;
+    	let t0;
+    	let button_disabled_value;
+    	let t1;
+    	let updating_value;
+    	let t2;
+    	let updating_value_1;
+    	let t3;
+    	let updating_value_2;
+    	let t4;
+    	let updating_value_3;
+    	let t5;
+    	let updating_value_4;
+    	let current;
+    	let dispose;
+
+    	function dropdown0_value_binding(value) {
+    		/*dropdown0_value_binding*/ ctx[12].call(null, value);
+    	}
+
+    	let dropdown0_props = { items: /*paths*/ ctx[0] };
+
+    	if (/*path*/ ctx[1] !== void 0) {
+    		dropdown0_props.value = /*path*/ ctx[1];
+    	}
+
+    	const dropdown0 = new DropDown({ props: dropdown0_props, $$inline: true });
+    	binding_callbacks.push(() => bind(dropdown0, "value", dropdown0_value_binding));
+
+    	function dropdown1_value_binding(value) {
+    		/*dropdown1_value_binding*/ ctx[13].call(null, value);
+    	}
+
+    	let dropdown1_props = { items: /*baudRates*/ ctx[6] };
+
+    	if (/*baudRate*/ ctx[2] !== void 0) {
+    		dropdown1_props.value = /*baudRate*/ ctx[2];
+    	}
+
+    	const dropdown1 = new DropDown({ props: dropdown1_props, $$inline: true });
+    	binding_callbacks.push(() => bind(dropdown1, "value", dropdown1_value_binding));
+
+    	function dropdown2_value_binding(value) {
+    		/*dropdown2_value_binding*/ ctx[14].call(null, value);
+    	}
+
+    	let dropdown2_props = { items: /*dataBitsList*/ ctx[9] };
+
+    	if (/*dataBits*/ ctx[5] !== void 0) {
+    		dropdown2_props.value = /*dataBits*/ ctx[5];
+    	}
+
+    	const dropdown2 = new DropDown({ props: dropdown2_props, $$inline: true });
+    	binding_callbacks.push(() => bind(dropdown2, "value", dropdown2_value_binding));
+
+    	function dropdown3_value_binding(value) {
+    		/*dropdown3_value_binding*/ ctx[15].call(null, value);
+    	}
+
+    	let dropdown3_props = { items: /*parityList*/ ctx[8] };
+
+    	if (/*parity*/ ctx[4] !== void 0) {
+    		dropdown3_props.value = /*parity*/ ctx[4];
+    	}
+
+    	const dropdown3 = new DropDown({ props: dropdown3_props, $$inline: true });
+    	binding_callbacks.push(() => bind(dropdown3, "value", dropdown3_value_binding));
+
+    	function dropdown4_value_binding(value) {
+    		/*dropdown4_value_binding*/ ctx[16].call(null, value);
+    	}
+
+    	let dropdown4_props = { items: /*stopBitsList*/ ctx[7] };
+
+    	if (/*stopBits*/ ctx[3] !== void 0) {
+    		dropdown4_props.value = /*stopBits*/ ctx[3];
+    	}
+
+    	const dropdown4 = new DropDown({ props: dropdown4_props, $$inline: true });
+    	binding_callbacks.push(() => bind(dropdown4, "value", dropdown4_value_binding));
+
+    	const block = {
+    		c: function create() {
+    			form = element("form");
+    			button = element("button");
+    			t0 = text("Connect");
+    			t1 = space();
+    			create_component(dropdown0.$$.fragment);
+    			t2 = space();
+    			create_component(dropdown1.$$.fragment);
+    			t3 = space();
+    			create_component(dropdown2.$$.fragment);
+    			t4 = space();
+    			create_component(dropdown3.$$.fragment);
+    			t5 = space();
+    			create_component(dropdown4.$$.fragment);
+    			button.disabled = button_disabled_value = /*path*/ ctx[1] === emptyPath;
+    			attr_dev(button, "type", "submit");
+    			add_location(button, file$2, 44, 1, 889);
+    			add_location(form, file$2, 43, 0, 841);
+    		},
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+    		m: function mount(target, anchor) {
+    			insert_dev(target, form, anchor);
+    			append_dev(form, button);
+    			append_dev(button, t0);
+    			append_dev(form, t1);
+    			mount_component(dropdown0, form, null);
+    			append_dev(form, t2);
+    			mount_component(dropdown1, form, null);
+    			append_dev(form, t3);
+    			mount_component(dropdown2, form, null);
+    			append_dev(form, t4);
+    			mount_component(dropdown3, form, null);
+    			append_dev(form, t5);
+    			mount_component(dropdown4, form, null);
+    			current = true;
+    			dispose = listen_dev(form, "submit", prevent_default(/*handleSubmit*/ ctx[10]), false, true, false);
+    		},
+    		p: function update(ctx, [dirty]) {
+    			if (!current || dirty & /*path*/ 2 && button_disabled_value !== (button_disabled_value = /*path*/ ctx[1] === emptyPath)) {
+    				prop_dev(button, "disabled", button_disabled_value);
+    			}
+
+    			const dropdown0_changes = {};
+    			if (dirty & /*paths*/ 1) dropdown0_changes.items = /*paths*/ ctx[0];
+
+    			if (!updating_value && dirty & /*path*/ 2) {
+    				updating_value = true;
+    				dropdown0_changes.value = /*path*/ ctx[1];
+    				add_flush_callback(() => updating_value = false);
+    			}
+
+    			dropdown0.$set(dropdown0_changes);
+    			const dropdown1_changes = {};
+
+    			if (!updating_value_1 && dirty & /*baudRate*/ 4) {
+    				updating_value_1 = true;
+    				dropdown1_changes.value = /*baudRate*/ ctx[2];
+    				add_flush_callback(() => updating_value_1 = false);
+    			}
+
+    			dropdown1.$set(dropdown1_changes);
+    			const dropdown2_changes = {};
+
+    			if (!updating_value_2 && dirty & /*dataBits*/ 32) {
+    				updating_value_2 = true;
+    				dropdown2_changes.value = /*dataBits*/ ctx[5];
+    				add_flush_callback(() => updating_value_2 = false);
+    			}
+
+    			dropdown2.$set(dropdown2_changes);
+    			const dropdown3_changes = {};
+
+    			if (!updating_value_3 && dirty & /*parity*/ 16) {
+    				updating_value_3 = true;
+    				dropdown3_changes.value = /*parity*/ ctx[4];
+    				add_flush_callback(() => updating_value_3 = false);
+    			}
+
+    			dropdown3.$set(dropdown3_changes);
+    			const dropdown4_changes = {};
+
+    			if (!updating_value_4 && dirty & /*stopBits*/ 8) {
+    				updating_value_4 = true;
+    				dropdown4_changes.value = /*stopBits*/ ctx[3];
+    				add_flush_callback(() => updating_value_4 = false);
+    			}
+
+    			dropdown4.$set(dropdown4_changes);
+    		},
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(dropdown0.$$.fragment, local);
+    			transition_in(dropdown1.$$.fragment, local);
+    			transition_in(dropdown2.$$.fragment, local);
+    			transition_in(dropdown3.$$.fragment, local);
+    			transition_in(dropdown4.$$.fragment, local);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			transition_out(dropdown0.$$.fragment, local);
+    			transition_out(dropdown1.$$.fragment, local);
+    			transition_out(dropdown2.$$.fragment, local);
+    			transition_out(dropdown3.$$.fragment, local);
+    			transition_out(dropdown4.$$.fragment, local);
+    			current = false;
+    		},
+    		d: function destroy(detaching) {
+    			if (detaching) detach_dev(form);
+    			destroy_component(dropdown0);
+    			destroy_component(dropdown1);
+    			destroy_component(dropdown2);
+    			destroy_component(dropdown3);
+    			destroy_component(dropdown4);
+    			dispose();
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_fragment$2.name,
+    		type: "component",
+    		source: "",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    const emptyPath = "--";
+
+    function instance$2($$self, $$props, $$invalidate) {
+    	let { config = {} } = $$props;
+    	let paths = [];
+    	let baudRates = [300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 76800, 115200, 230400];
+    	let stopBitsList = [1, 2];
+    	let parityList = ["none", "even", "odd"];
+    	let dataBitsList = [7, 8];
+    	let path = emptyPath;
+    	let baudRate = 115200;
+    	let stopBits = 1;
+    	let parity = "none";
+    	let dataBits = 8;
+
+    	function handleSubmit() {
+    		$$invalidate(11, config = {
+    			path,
+    			baudRate,
+    			dataBits,
+    			parity,
+    			stopBits
+    		});
+    	}
+
+    	onMount(async function () {
+    		const ports = await serial.listPorts();
+    		$$invalidate(0, paths = ports.map(item => item.path));
+    		paths.unshift(emptyPath);
+    		console.log(paths);
+    	});
+
+    	const writable_props = ["config"];
+
+    	Object.keys($$props).forEach(key => {
+    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1$2.warn(`<ConfigureTerminal> was created with unknown prop '${key}'`);
+    	});
+
+    	function dropdown0_value_binding(value) {
+    		path = value;
+    		$$invalidate(1, path);
+    	}
+
+    	function dropdown1_value_binding(value) {
+    		baudRate = value;
+    		$$invalidate(2, baudRate);
+    	}
+
+    	function dropdown2_value_binding(value) {
+    		dataBits = value;
+    		$$invalidate(5, dataBits);
+    	}
+
+    	function dropdown3_value_binding(value) {
+    		parity = value;
+    		$$invalidate(4, parity);
+    	}
+
+    	function dropdown4_value_binding(value) {
+    		stopBits = value;
+    		$$invalidate(3, stopBits);
+    	}
+
+    	$$self.$set = $$props => {
+    		if ("config" in $$props) $$invalidate(11, config = $$props.config);
+    	};
+
+    	$$self.$capture_state = () => ({
+    		onMount,
+    		serial,
+    		DropDown,
+    		config,
+    		emptyPath,
+    		paths,
+    		baudRates,
+    		stopBitsList,
+    		parityList,
+    		dataBitsList,
+    		path,
+    		baudRate,
+    		stopBits,
+    		parity,
+    		dataBits,
+    		handleSubmit,
+    		console
+    	});
+
+    	$$self.$inject_state = $$props => {
+    		if ("config" in $$props) $$invalidate(11, config = $$props.config);
+    		if ("paths" in $$props) $$invalidate(0, paths = $$props.paths);
+    		if ("baudRates" in $$props) $$invalidate(6, baudRates = $$props.baudRates);
+    		if ("stopBitsList" in $$props) $$invalidate(7, stopBitsList = $$props.stopBitsList);
+    		if ("parityList" in $$props) $$invalidate(8, parityList = $$props.parityList);
+    		if ("dataBitsList" in $$props) $$invalidate(9, dataBitsList = $$props.dataBitsList);
+    		if ("path" in $$props) $$invalidate(1, path = $$props.path);
+    		if ("baudRate" in $$props) $$invalidate(2, baudRate = $$props.baudRate);
+    		if ("stopBits" in $$props) $$invalidate(3, stopBits = $$props.stopBits);
+    		if ("parity" in $$props) $$invalidate(4, parity = $$props.parity);
+    		if ("dataBits" in $$props) $$invalidate(5, dataBits = $$props.dataBits);
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
+    	return [
+    		paths,
+    		path,
+    		baudRate,
+    		stopBits,
+    		parity,
+    		dataBits,
+    		baudRates,
+    		stopBitsList,
+    		parityList,
+    		dataBitsList,
+    		handleSubmit,
+    		config,
+    		dropdown0_value_binding,
+    		dropdown1_value_binding,
+    		dropdown2_value_binding,
+    		dropdown3_value_binding,
+    		dropdown4_value_binding
+    	];
+    }
+
+    class ConfigureTerminal extends SvelteComponentDev {
+    	constructor(options) {
+    		super(options);
+    		init(this, options, instance$2, create_fragment$2, safe_not_equal, { config: 11 });
+
+    		dispatch_dev("SvelteRegisterComponent", {
+    			component: this,
+    			tagName: "ConfigureTerminal",
+    			options,
+    			id: create_fragment$2.name
+    		});
+    	}
+
+    	get config() {
+    		throw new Error("<ConfigureTerminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set config(value) {
+    		throw new Error("<ConfigureTerminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+    }
+
+    /* src/StatusLine.svelte generated by Svelte v3.19.1 */
+
+    function create_fragment$3(ctx) {
+    	const block = {
+    		c: noop,
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+    		m: noop,
+    		p: noop,
+    		i: noop,
+    		o: noop,
+    		d: noop
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_fragment$3.name,
+    		type: "component",
+    		source: "",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    function instance$3($$self, $$props, $$invalidate) {
+    	let { config = {} } = $$props;
+
+    	document.title = `${config.path} : ${config.baudRate} / ${config.dataBits}-${config.parity === "none"
+	? "N"
+	: config.parity === "odd" ? "O" : "E"}-${config.stopBits}`;
+
+    	const writable_props = ["config"];
+
+    	Object.keys($$props).forEach(key => {
+    		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console.warn(`<StatusLine> was created with unknown prop '${key}'`);
+    	});
+
+    	$$self.$set = $$props => {
+    		if ("config" in $$props) $$invalidate(0, config = $$props.config);
+    	};
+
+    	$$self.$capture_state = () => ({ config, document });
+
+    	$$self.$inject_state = $$props => {
+    		if ("config" in $$props) $$invalidate(0, config = $$props.config);
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
+    	return [config];
+    }
+
+    class StatusLine extends SvelteComponentDev {
+    	constructor(options) {
+    		super(options);
+    		init(this, options, instance$3, create_fragment$3, safe_not_equal, { config: 0 });
+
+    		dispatch_dev("SvelteRegisterComponent", {
+    			component: this,
+    			tagName: "StatusLine",
+    			options,
+    			id: create_fragment$3.name
+    		});
+    	}
+
+    	get config() {
+    		throw new Error("<StatusLine>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set config(value) {
+    		throw new Error("<StatusLine>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+    }
+
+    /* src/App.svelte generated by Svelte v3.19.1 */
+
+    // (14:0) {:else}
+    function create_else_block(ctx) {
+    	let t;
+    	let current;
+
+    	const statusline = new StatusLine({
+    			props: { config: /*config*/ ctx[0] },
+    			$$inline: true
+    		});
+
+    	const terminal = new Terminal({
+    			props: { config: /*config*/ ctx[0] },
+    			$$inline: true
+    		});
+
+    	const block = {
+    		c: function create() {
+    			create_component(statusline.$$.fragment);
+    			t = space();
+    			create_component(terminal.$$.fragment);
+    		},
+    		m: function mount(target, anchor) {
+    			mount_component(statusline, target, anchor);
+    			insert_dev(target, t, anchor);
+    			mount_component(terminal, target, anchor);
+    			current = true;
+    		},
+    		p: function update(ctx, dirty) {
+    			const statusline_changes = {};
+    			if (dirty & /*config*/ 1) statusline_changes.config = /*config*/ ctx[0];
+    			statusline.$set(statusline_changes);
+    			const terminal_changes = {};
+    			if (dirty & /*config*/ 1) terminal_changes.config = /*config*/ ctx[0];
+    			terminal.$set(terminal_changes);
+    		},
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(statusline.$$.fragment, local);
+    			transition_in(terminal.$$.fragment, local);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			transition_out(statusline.$$.fragment, local);
+    			transition_out(terminal.$$.fragment, local);
+    			current = false;
+    		},
+    		d: function destroy(detaching) {
+    			destroy_component(statusline, detaching);
+    			if (detaching) detach_dev(t);
+    			destroy_component(terminal, detaching);
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_else_block.name,
+    		type: "else",
+    		source: "(14:0) {:else}",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    // (12:0) {#if !config}
+    function create_if_block(ctx) {
+    	let updating_config;
+    	let current;
+
+    	function configureterminal_config_binding(value) {
+    		/*configureterminal_config_binding*/ ctx[1].call(null, value);
+    	}
+
+    	let configureterminal_props = {};
+
+    	if (/*config*/ ctx[0] !== void 0) {
+    		configureterminal_props.config = /*config*/ ctx[0];
+    	}
+
+    	const configureterminal = new ConfigureTerminal({
+    			props: configureterminal_props,
+    			$$inline: true
+    		});
+
+    	binding_callbacks.push(() => bind(configureterminal, "config", configureterminal_config_binding));
+
+    	const block = {
+    		c: function create() {
+    			create_component(configureterminal.$$.fragment);
+    		},
+    		m: function mount(target, anchor) {
+    			mount_component(configureterminal, target, anchor);
+    			current = true;
+    		},
+    		p: function update(ctx, dirty) {
+    			const configureterminal_changes = {};
+
+    			if (!updating_config && dirty & /*config*/ 1) {
+    				updating_config = true;
+    				configureterminal_changes.config = /*config*/ ctx[0];
+    				add_flush_callback(() => updating_config = false);
+    			}
+
+    			configureterminal.$set(configureterminal_changes);
+    		},
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(configureterminal.$$.fragment, local);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			transition_out(configureterminal.$$.fragment, local);
+    			current = false;
+    		},
+    		d: function destroy(detaching) {
+    			destroy_component(configureterminal, detaching);
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_if_block.name,
+    		type: "if",
+    		source: "(12:0) {#if !config}",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    function create_fragment$4(ctx) {
+    	let current_block_type_index;
+    	let if_block;
+    	let if_block_anchor;
+    	let current;
+    	const if_block_creators = [create_if_block, create_else_block];
+    	const if_blocks = [];
+
+    	function select_block_type(ctx, dirty) {
+    		if (!/*config*/ ctx[0]) return 0;
+    		return 1;
+    	}
+
+    	current_block_type_index = select_block_type(ctx);
+    	if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+
+    	const block = {
+    		c: function create() {
+    			if_block.c();
+    			if_block_anchor = empty();
+    		},
+    		l: function claim(nodes) {
+    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
+    		},
+    		m: function mount(target, anchor) {
+    			if_blocks[current_block_type_index].m(target, anchor);
+    			insert_dev(target, if_block_anchor, anchor);
+    			current = true;
+    		},
+    		p: function update(ctx, [dirty]) {
+    			let previous_block_index = current_block_type_index;
+    			current_block_type_index = select_block_type(ctx);
+
+    			if (current_block_type_index === previous_block_index) {
+    				if_blocks[current_block_type_index].p(ctx, dirty);
+    			} else {
+    				group_outros();
+
+    				transition_out(if_blocks[previous_block_index], 1, 1, () => {
+    					if_blocks[previous_block_index] = null;
+    				});
+
+    				check_outros();
+    				if_block = if_blocks[current_block_type_index];
+
+    				if (!if_block) {
+    					if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+    					if_block.c();
+    				}
+
+    				transition_in(if_block, 1);
+    				if_block.m(if_block_anchor.parentNode, if_block_anchor);
+    			}
+    		},
+    		i: function intro(local) {
+    			if (current) return;
+    			transition_in(if_block);
+    			current = true;
+    		},
+    		o: function outro(local) {
+    			transition_out(if_block);
+    			current = false;
+    		},
+    		d: function destroy(detaching) {
+    			if_blocks[current_block_type_index].d(detaching);
+    			if (detaching) detach_dev(if_block_anchor);
+    		}
+    	};
+
+    	dispatch_dev("SvelteRegisterBlock", {
+    		block,
+    		id: create_fragment$4.name,
+    		type: "component",
+    		source: "",
+    		ctx
+    	});
+
+    	return block;
+    }
+
+    function instance$4($$self, $$props, $$invalidate) {
+    	let config = null;
+    	document.title = "Serial Terminal";
+
+    	function configureterminal_config_binding(value) {
+    		config = value;
+    		$$invalidate(0, config);
+    	}
+
+    	$$self.$capture_state = () => ({
+    		Terminal,
+    		ConfigureTerminal,
+    		StatusLine,
+    		config,
+    		document
+    	});
+
+    	$$self.$inject_state = $$props => {
+    		if ("config" in $$props) $$invalidate(0, config = $$props.config);
+    	};
+
+    	if ($$props && "$$inject" in $$props) {
+    		$$self.$inject_state($$props.$$inject);
+    	}
+
+    	return [config, configureterminal_config_binding];
+    }
+
+    class App extends SvelteComponentDev {
+    	constructor(options) {
+    		super(options);
+    		init(this, options, instance$4, create_fragment$4, safe_not_equal, {});
+
+    		dispatch_dev("SvelteRegisterComponent", {
+    			component: this,
+    			tagName: "App",
+    			options,
+    			id: create_fragment$4.name
+    		});
     	}
     }
 

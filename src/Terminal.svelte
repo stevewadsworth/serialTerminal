@@ -2,11 +2,7 @@
   import { onMount, beforeUpdate, afterUpdate } from "svelte";
   import serial from "./modules/serial";
 
-  export let path = "";
-  export let baudRate = 115200;
-  export let dataBits = 8;
-  export let parity = "none";
-  export let stopBits = 1;
+  export let config = {};
   export let localEcho = true;
 
   let div;
@@ -16,7 +12,7 @@
   let line = "";
 
   onMount(async function() {
-    const port = serial.openPort(path, baudRate, dataBits, parity, stopBits);
+    const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
     const parser = serial.addReadlineParser(port);
     parser.on("data", chunk => {
       acc.push(chunk);
@@ -55,8 +51,10 @@
 
 <style>
   div {
+    position: absolute;
+    top: 0;
     height: 100%;
-    width: max-content;
+    width: 100%;
     overflow: scroll;
   }
 
