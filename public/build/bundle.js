@@ -73,8 +73,14 @@ var app = (function () {
             throw new Error(`Function called outside component initialization`);
         return current_component;
     }
+    function beforeUpdate(fn) {
+        get_current_component().$$.before_update.push(fn);
+    }
     function onMount(fn) {
         get_current_component().$$.on_mount.push(fn);
+    }
+    function afterUpdate(fn) {
+        get_current_component().$$.after_update.push(fn);
     }
 
     const dirty_components = [];
@@ -340,11 +346,11 @@ var app = (function () {
     SerialPort.Binding = require('@serialport/bindings');
 
     const listPorts = async () => {
-        const ports = await SerialPort.list();
-        for (const port of ports) {
-          console.log(`${port.path}\t${port.pnpId || ''}\t${port.manufacturer || ''}`);
-        }
-        return ports
+      const ports = await SerialPort.list();
+      for (const port of ports) {
+        console.log(`${port.path}\t${port.pnpId || ''}\t${port.manufacturer || ''}`);
+      }
+      return ports
     };
 
     const openPort = (path, baudRate, dataBits, parity, stopBits) => {
@@ -374,29 +380,29 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[1] = list[i];
+    	child_ctx[2] = list[i];
     	return child_ctx;
     }
 
-    // (61:4) {#each rxData as line}
+    // (71:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
-    	let t_value = /*line*/ ctx[1] + "";
+    	let t_value = /*line*/ ctx[2] + "";
     	let t;
 
     	const block = {
     		c: function create() {
     			pre = element("pre");
     			t = text(t_value);
-    			attr_dev(pre, "class", "svelte-e7deyx");
-    			add_location(pre, file, 61, 8, 1296);
+    			attr_dev(pre, "class", "svelte-10ibzxr");
+    			add_location(pre, file, 71, 4, 1479);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
     			append_dev(pre, t);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*rxData*/ 1 && t_value !== (t_value = /*line*/ ctx[1] + "")) set_data_dev(t, t_value);
+    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[2] + "")) set_data_dev(t, t_value);
     		},
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(pre);
@@ -407,7 +413,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(61:4) {#each rxData as line}",
+    		source: "(71:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -415,8 +421,8 @@ var app = (function () {
     }
 
     function create_fragment(ctx) {
-    	let div;
-    	let each_value = /*rxData*/ ctx[0];
+    	let div_1;
+    	let each_value = /*rxData*/ ctx[1];
     	validate_each_argument(each_value);
     	let each_blocks = [];
 
@@ -426,29 +432,30 @@ var app = (function () {
 
     	const block = {
     		c: function create() {
-    			div = element("div");
+    			div_1 = element("div");
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				each_blocks[i].c();
     			}
 
-    			attr_dev(div, "id", "terminal-container");
-    			attr_dev(div, "class", "svelte-e7deyx");
-    			add_location(div, file, 59, 0, 1231);
+    			attr_dev(div_1, "class", "svelte-10ibzxr");
+    			add_location(div_1, file, 69, 0, 1428);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
+    			insert_dev(target, div_1, anchor);
 
     			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(div, null);
+    				each_blocks[i].m(div_1, null);
     			}
+
+    			/*div_1_binding*/ ctx[11](div_1);
     		},
     		p: function update(ctx, [dirty]) {
-    			if (dirty & /*rxData*/ 1) {
-    				each_value = /*rxData*/ ctx[0];
+    			if (dirty & /*rxData*/ 2) {
+    				each_value = /*rxData*/ ctx[1];
     				validate_each_argument(each_value);
     				let i;
 
@@ -460,7 +467,7 @@ var app = (function () {
     					} else {
     						each_blocks[i] = create_each_block(child_ctx);
     						each_blocks[i].c();
-    						each_blocks[i].m(div, null);
+    						each_blocks[i].m(div_1, null);
     					}
     				}
 
@@ -474,8 +481,9 @@ var app = (function () {
     		i: noop,
     		o: noop,
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div);
+    			if (detaching) detach_dev(div_1);
     			destroy_each(each_blocks, detaching);
+    			/*div_1_binding*/ ctx[11](null);
     		}
     	};
 
@@ -497,6 +505,8 @@ var app = (function () {
     	let { parity = "none" } = $$props;
     	let { stopBits = 1 } = $$props;
     	let { localEcho = true } = $$props;
+    	let div;
+    	let autoscroll;
     	let rxData = [];
     	let acc = [];
     	let line = "";
@@ -507,11 +517,15 @@ var app = (function () {
 
     		parser.on("data", chunk => {
     			acc.push(chunk);
-    			$$invalidate(0, rxData = acc);
+    			$$invalidate(1, rxData = acc);
     		});
 
     		document.onkeypress = e => {
     			console.log(e);
+
+    			// Auto scroll to the bottom on keypress
+    			div.scrollTo(0, div.scrollHeight);
+
     			let key = e.key;
 
     			if (e.keyCode === 13) {
@@ -520,17 +534,22 @@ var app = (function () {
 
     			port.write(key);
 
-    			port.drain(e => {
-    				if (e) {
-    					console.log(e);
-    				}
-    			});
-
     			if (localEcho) {
     				acc.push(key);
-    				$$invalidate(0, rxData = acc);
+    				$$invalidate(1, rxData = acc);
     			}
     		};
+    	});
+
+    	beforeUpdate(() => {
+    		// Only scroll if we are at the bottom already
+    		autoscroll = div && div.offsetHeight + div.scrollTop > div.scrollHeight - 20;
+    	});
+
+    	afterUpdate(() => {
+    		if (autoscroll) {
+    			div.scrollTo(0, div.scrollHeight);
+    		}
     	});
 
     	const writable_props = ["path", "baudRate", "dataBits", "parity", "stopBits", "localEcho"];
@@ -539,17 +558,25 @@ var app = (function () {
     		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1.warn(`<Terminal> was created with unknown prop '${key}'`);
     	});
 
+    	function div_1_binding($$value) {
+    		binding_callbacks[$$value ? "unshift" : "push"](() => {
+    			$$invalidate(0, div = $$value);
+    		});
+    	}
+
     	$$self.$set = $$props => {
-    		if ("path" in $$props) $$invalidate(2, path = $$props.path);
-    		if ("baudRate" in $$props) $$invalidate(3, baudRate = $$props.baudRate);
-    		if ("dataBits" in $$props) $$invalidate(4, dataBits = $$props.dataBits);
-    		if ("parity" in $$props) $$invalidate(5, parity = $$props.parity);
-    		if ("stopBits" in $$props) $$invalidate(6, stopBits = $$props.stopBits);
-    		if ("localEcho" in $$props) $$invalidate(7, localEcho = $$props.localEcho);
+    		if ("path" in $$props) $$invalidate(3, path = $$props.path);
+    		if ("baudRate" in $$props) $$invalidate(4, baudRate = $$props.baudRate);
+    		if ("dataBits" in $$props) $$invalidate(5, dataBits = $$props.dataBits);
+    		if ("parity" in $$props) $$invalidate(6, parity = $$props.parity);
+    		if ("stopBits" in $$props) $$invalidate(7, stopBits = $$props.stopBits);
+    		if ("localEcho" in $$props) $$invalidate(8, localEcho = $$props.localEcho);
     	};
 
     	$$self.$capture_state = () => ({
     		onMount,
+    		beforeUpdate,
+    		afterUpdate,
     		serial,
     		path,
     		baudRate,
@@ -557,6 +584,8 @@ var app = (function () {
     		parity,
     		stopBits,
     		localEcho,
+    		div,
+    		autoscroll,
     		rxData,
     		acc,
     		line,
@@ -565,22 +594,37 @@ var app = (function () {
     	});
 
     	$$self.$inject_state = $$props => {
-    		if ("path" in $$props) $$invalidate(2, path = $$props.path);
-    		if ("baudRate" in $$props) $$invalidate(3, baudRate = $$props.baudRate);
-    		if ("dataBits" in $$props) $$invalidate(4, dataBits = $$props.dataBits);
-    		if ("parity" in $$props) $$invalidate(5, parity = $$props.parity);
-    		if ("stopBits" in $$props) $$invalidate(6, stopBits = $$props.stopBits);
-    		if ("localEcho" in $$props) $$invalidate(7, localEcho = $$props.localEcho);
-    		if ("rxData" in $$props) $$invalidate(0, rxData = $$props.rxData);
+    		if ("path" in $$props) $$invalidate(3, path = $$props.path);
+    		if ("baudRate" in $$props) $$invalidate(4, baudRate = $$props.baudRate);
+    		if ("dataBits" in $$props) $$invalidate(5, dataBits = $$props.dataBits);
+    		if ("parity" in $$props) $$invalidate(6, parity = $$props.parity);
+    		if ("stopBits" in $$props) $$invalidate(7, stopBits = $$props.stopBits);
+    		if ("localEcho" in $$props) $$invalidate(8, localEcho = $$props.localEcho);
+    		if ("div" in $$props) $$invalidate(0, div = $$props.div);
+    		if ("autoscroll" in $$props) autoscroll = $$props.autoscroll;
+    		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
     		if ("acc" in $$props) acc = $$props.acc;
-    		if ("line" in $$props) $$invalidate(1, line = $$props.line);
+    		if ("line" in $$props) $$invalidate(2, line = $$props.line);
     	};
 
     	if ($$props && "$$inject" in $$props) {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [rxData, line, path, baudRate, dataBits, parity, stopBits, localEcho];
+    	return [
+    		div,
+    		rxData,
+    		line,
+    		path,
+    		baudRate,
+    		dataBits,
+    		parity,
+    		stopBits,
+    		localEcho,
+    		autoscroll,
+    		acc,
+    		div_1_binding
+    	];
     }
 
     class Terminal extends SvelteComponentDev {
@@ -588,12 +632,12 @@ var app = (function () {
     		super(options);
 
     		init(this, options, instance, create_fragment, safe_not_equal, {
-    			path: 2,
-    			baudRate: 3,
-    			dataBits: 4,
-    			parity: 5,
-    			stopBits: 6,
-    			localEcho: 7
+    			path: 3,
+    			baudRate: 4,
+    			dataBits: 5,
+    			parity: 6,
+    			stopBits: 7,
+    			localEcho: 8
     		});
 
     		dispatch_dev("SvelteRegisterComponent", {
