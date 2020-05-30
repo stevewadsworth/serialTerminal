@@ -39,15 +39,18 @@
 </script>
 
 <style>
+button {
+  float: right;
+}
 </style>
 
 <form on:submit|preventDefault={handleSubmit}>
-	<button disabled={path === emptyPath} type=submit>
-		Connect
-	</button>
   <DropDown bind:value={path} items={paths}/>
   <DropDown bind:value={baudRate} items={baudRates}/>
   <DropDown bind:value={dataBits} items={dataBitsList}/>
   <DropDown bind:value={parity} items={parityList}/>
   <DropDown bind:value={stopBits} items={stopBitsList}/>
+	<button disabled={path === emptyPath} type=submit>
+		Connect
+	</button>
 </form>

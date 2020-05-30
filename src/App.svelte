@@ -1,4 +1,5 @@
 <script>
+	import { fade } from 'svelte/transition';
 	import Terminal from "./Terminal.svelte"
 	import ConfigureTerminal from "./ConfigureTerminal.svelte"
 	import StatusLine from './StatusLine.svelte'
@@ -9,11 +10,37 @@
 
 </script>
 
-{#if !config}
-<ConfigureTerminal bind:config={config}/>
-{:else}
-<StatusLine config={config}/>
-<Terminal config={config}/>
-{/if}
+<main>
+	{#if !config}
+		<div transition:fade>
+			<ConfigureTerminal bind:config={config}/>
+			<div id='welcome'>
+				<h1>Serial Terminal</h1>
+			</div>
+		</div>
+	{:else}
+		<div>
+			<StatusLine config={config}/>
+			<Terminal config={config}/>
+		</div>
+	{/if}
+</main>
+
 <style>
+	main {
+		height: 100%;
+		width: 100%;
+	}
+
+	#welcome {
+ 		text-align: center;
+ 		padding: 1em;
+ 		margin: auto auto;
+ 	}
+ 	h1 {
+ 		color: #ff9900;
+ 		text-transform: uppercase;
+ 		font-size: 4em;
+ 		font-weight: 100;
+ 	}
 </style>

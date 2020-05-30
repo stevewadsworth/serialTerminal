@@ -12,6 +12,12 @@
   })
 </script>
 
+<style>
+select {
+  margin: 0.5rem;
+}
+</style>
+
 <select bind:value={value}>
   {#each items as item}
     <option value={item}>

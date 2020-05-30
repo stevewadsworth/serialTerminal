@@ -23,9 +23,4 @@ export const openPort = (path, baudRate, dataBits, parity, stopBits) => {
   return port
 }
 
-const addReadlineParser = (port) => {
-  const parser = port.pipe(new Readline({ delimiter: '\n' })) // This works, but only returns data when a full line has been terminated with \n
-  return parser;
-}
-
-export default { listPorts, openPort, addReadlineParser }
+export default { listPorts, openPort }

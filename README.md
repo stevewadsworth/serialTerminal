@@ -1,23 +1,28 @@
-# Electron Forge + Svelte  Starter
+# Serial Terminal
 
-Get up and running with 💪 Svelte & ⚡ Electron. 
+This is really an experiment in developing Electron apps with Svelte.
+I chose to develop a serial terminal as I needed one and I wasn't happy with the options available! Hopefully this will develop into something useful (hey, it has already been useful for me to see how cool it is developing apps with Electron and Svelte).
 
-## Usage
+## Set Up
 
 ```
-git clone https://github.com/codediodeio/electron-forge-svelte.git my-app
-cd my-app
+git clone git@github.com:stevewadsworth/serialTerminal.git
+cd serialTerminal
 
 npm install
 npm start
 ```
+## Based On
 
-![svelte electron](https://firebasestorage.googleapis.com/v0/b/fireship-app.appspot.com/o/assets%2Felectron-svelte-hello.png?alt=media&token=0d3ecb24-3024-4358-ac26-7676b3e60fa1)
+[Node Serial Port](https://serialport.io)
 
-## Notes
+## Built With
 
-- src/index.js - Main electron process. 
-- src/svelte.js - Svelte app entrypoint. 
+- [Svelte](https://svelte.dev)
+- [Electron](https://www.electronjs.org)
+- [Electron Forge](https://www.electronforge.io)
 
-Setup [Electron with Svelte](https://fireship.io/snippets/svelte-electron-setup) from scratch. 
-Build cool projects with [Electron](https://fireship.io/tags/electron). 
+Helpful hints from [fireship.io](https://fireship.io)
+
+Setup [Electron with Svelte](https://fireship.io/snippets/svelte-electron-setup) from scratch.
+Build cool projects with [Electron](https://fireship.io/tags/electron).

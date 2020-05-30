@@ -4,6 +4,7 @@ var app = (function () {
     'use strict';
 
     function noop() { }
+    const identity = x => x;
     function add_location(element, file, line, column, char) {
         element.__svelte_meta = {
             loc: { file, line, column, char }
@@ -23,6 +24,41 @@ var app = (function () {
     }
     function safe_not_equal(a, b) {
         return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
+    }
+
+    const is_client = typeof window !== 'undefined';
+    let now = is_client
+        ? () => window.performance.now()
+        : () => Date.now();
+    let raf = is_client ? cb => requestAnimationFrame(cb) : noop;
+
+    const tasks = new Set();
+    function run_tasks(now) {
+        tasks.forEach(task => {
+            if (!task.c(now)) {
+                tasks.delete(task);
+                task.f();
+            }
+        });
+        if (tasks.size !== 0)
+            raf(run_tasks);
+    }
+    /**
+     * Creates a new task that runs on each raf frame
+     * until it returns a falsy value or is aborted
+     */
+    function loop(callback) {
+        let task;
+        if (tasks.size === 0)
+            raf(run_tasks);
+        return {
+            promise: new Promise(fulfill => {
+                tasks.add(task = { c: callback, f: fulfill });
+            }),
+            abort() {
+                tasks.delete(task);
+            }
+        };
     }
 
     function append(target, node) {
@@ -48,9 +84,6 @@ var app = (function () {
     }
     function space() {
         return text(' ');
-    }
-    function empty() {
-        return text('');
     }
     function listen(node, event, handler, options) {
         node.addEventListener(event, handler, options);
@@ -89,6 +122,62 @@ var app = (function () {
         const e = document.createEvent('CustomEvent');
         e.initCustomEvent(type, false, false, detail);
         return e;
+    }
+
+    let stylesheet;
+    let active = 0;
+    let current_rules = {};
+    // https://github.com/darkskyapp/string-hash/blob/master/index.js
+    function hash(str) {
+        let hash = 5381;
+        let i = str.length;
+        while (i--)
+            hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
+        return hash >>> 0;
+    }
+    function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
+        const step = 16.666 / duration;
+        let keyframes = '{\n';
+        for (let p = 0; p <= 1; p += step) {
+            const t = a + (b - a) * ease(p);
+            keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
+        }
+        const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
+        const name = `__svelte_${hash(rule)}_${uid}`;
+        if (!current_rules[name]) {
+            if (!stylesheet) {
+                const style = element('style');
+                document.head.appendChild(style);
+                stylesheet = style.sheet;
+            }
+            current_rules[name] = true;
+            stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
+        }
+        const animation = node.style.animation || '';
+        node.style.animation = `${animation ? `${animation}, ` : ``}${name} ${duration}ms linear ${delay}ms 1 both`;
+        active += 1;
+        return name;
+    }
+    function delete_rule(node, name) {
+        node.style.animation = (node.style.animation || '')
+            .split(', ')
+            .filter(name
+            ? anim => anim.indexOf(name) < 0 // remove specific animation
+            : anim => anim.indexOf('__svelte') === -1 // remove all Svelte animations
+        )
+            .join(', ');
+        if (name && !--active)
+            clear_rules();
+    }
+    function clear_rules() {
+        raf(() => {
+            if (active)
+                return;
+            let i = stylesheet.cssRules.length;
+            while (i--)
+                stylesheet.deleteRule(i);
+            current_rules = {};
+        });
     }
 
     let current_component;
@@ -175,6 +264,20 @@ var app = (function () {
             $$.after_update.forEach(add_render_callback);
         }
     }
+
+    let promise;
+    function wait() {
+        if (!promise) {
+            promise = Promise.resolve();
+            promise.then(() => {
+                promise = null;
+            });
+        }
+        return promise;
+    }
+    function dispatch(node, direction, kind) {
+        node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
+    }
     const outroing = new Set();
     let outros;
     function group_outros() {
@@ -211,6 +314,112 @@ var app = (function () {
             });
             block.o(local);
         }
+    }
+    const null_transition = { duration: 0 };
+    function create_bidirectional_transition(node, fn, params, intro) {
+        let config = fn(node, params);
+        let t = intro ? 0 : 1;
+        let running_program = null;
+        let pending_program = null;
+        let animation_name = null;
+        function clear_animation() {
+            if (animation_name)
+                delete_rule(node, animation_name);
+        }
+        function init(program, duration) {
+            const d = program.b - t;
+            duration *= Math.abs(d);
+            return {
+                a: t,
+                b: program.b,
+                d,
+                duration,
+                start: program.start,
+                end: program.start + duration,
+                group: program.group
+            };
+        }
+        function go(b) {
+            const { delay = 0, duration = 300, easing = identity, tick = noop, css } = config || null_transition;
+            const program = {
+                start: now() + delay,
+                b
+            };
+            if (!b) {
+                // @ts-ignore todo: improve typings
+                program.group = outros;
+                outros.r += 1;
+            }
+            if (running_program) {
+                pending_program = program;
+            }
+            else {
+                // if this is an intro, and there's a delay, we need to do
+                // an initial tick and/or apply CSS animation immediately
+                if (css) {
+                    clear_animation();
+                    animation_name = create_rule(node, t, b, duration, delay, easing, css);
+                }
+                if (b)
+                    tick(0, 1);
+                running_program = init(program, duration);
+                add_render_callback(() => dispatch(node, b, 'start'));
+                loop(now => {
+                    if (pending_program && now > pending_program.start) {
+                        running_program = init(pending_program, duration);
+                        pending_program = null;
+                        dispatch(node, running_program.b, 'start');
+                        if (css) {
+                            clear_animation();
+                            animation_name = create_rule(node, t, running_program.b, running_program.duration, 0, easing, config.css);
+                        }
+                    }
+                    if (running_program) {
+                        if (now >= running_program.end) {
+                            tick(t = running_program.b, 1 - t);
+                            dispatch(node, running_program.b, 'end');
+                            if (!pending_program) {
+                                // we're done
+                                if (running_program.b) {
+                                    // intro — we can tidy up immediately
+                                    clear_animation();
+                                }
+                                else {
+                                    // outro — needs to be coordinated
+                                    if (!--running_program.group.r)
+                                        run_all(running_program.group.c);
+                                }
+                            }
+                            running_program = null;
+                        }
+                        else if (now >= running_program.start) {
+                            const p = now - running_program.start;
+                            t = running_program.a + running_program.d * easing(p / running_program.duration);
+                            tick(t, 1 - t);
+                        }
+                    }
+                    return !!(running_program || pending_program);
+                });
+            }
+        }
+        return {
+            run(b) {
+                if (is_function(config)) {
+                    wait().then(() => {
+                        // @ts-ignore
+                        config = config();
+                        go(b);
+                    });
+                }
+                else {
+                    go(b);
+                }
+            },
+            end() {
+                clear_animation();
+                running_program = pending_program = null;
+            }
+        };
     }
 
     const globals = (typeof window !== 'undefined' ? window : global);
@@ -409,6 +618,16 @@ var app = (function () {
         $inject_state() { }
     }
 
+    function fade(node, { delay = 0, duration = 400, easing = identity }) {
+        const o = +getComputedStyle(node).opacity;
+        return {
+            delay,
+            duration,
+            easing,
+            css: t => `opacity: ${t * o}`
+        };
+    }
+
     const SerialPort = require('@serialport/stream');
     const Readline = require('@serialport/parser-readline');
     SerialPort.Binding = require('@serialport/bindings');
@@ -434,12 +653,7 @@ var app = (function () {
       return port
     };
 
-    const addReadlineParser = (port) => {
-      const parser = port.pipe(new Readline({ delimiter: '\n' })); // This works, but only returns data when a full line has been terminated with \n
-      return parser;
-    };
-
-    var serial = { listPorts, openPort, addReadlineParser };
+    var serial = { listPorts, openPort };
 
     /* src/Terminal.svelte generated by Svelte v3.19.1 */
 
@@ -448,29 +662,29 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[2] = list[i];
+    	child_ctx[8] = list[i];
     	return child_ctx;
     }
 
-    // (69:2) {#each rxData as line}
+    // (77:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
-    	let t_value = /*line*/ ctx[2] + "";
+    	let t_value = /*line*/ ctx[8] + "";
     	let t;
 
     	const block = {
     		c: function create() {
     			pre = element("pre");
     			t = text(t_value);
-    			attr_dev(pre, "class", "svelte-1r85u9k");
-    			add_location(pre, file, 69, 4, 1429);
+    			attr_dev(pre, "class", "svelte-1otaxul");
+    			add_location(pre, file, 77, 4, 1569);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
     			append_dev(pre, t);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[2] + "")) set_data_dev(t, t_value);
+    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[8] + "")) set_data_dev(t, t_value);
     		},
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(pre);
@@ -481,7 +695,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(69:2) {#each rxData as line}",
+    		source: "(77:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -506,8 +720,8 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
-    			attr_dev(div_1, "class", "svelte-1r85u9k");
-    			add_location(div_1, file, 67, 0, 1378);
+    			attr_dev(div_1, "class", "svelte-1otaxul");
+    			add_location(div_1, file, 75, 0, 1518);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -568,19 +782,28 @@ var app = (function () {
 
     function instance($$self, $$props, $$invalidate) {
     	let { config = {} } = $$props;
-    	let { localEcho = true } = $$props;
+    	let { localEcho = false } = $$props;
     	let div;
     	let autoscroll;
-    	let rxData = [];
-    	let acc = [];
-    	let line = "";
+    	let acc = [""];
+    	let rxData = acc;
+
+    	const printToLine = c => {
+    		acc[acc.length - 1] += c;
+
+    		if (c === 10) {
+    			acc.push(new String());
+    		}
+    	};
 
     	onMount(async function () {
     		const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
-    		const parser = serial.addReadlineParser(port);
 
-    		parser.on("data", chunk => {
-    			acc.push(chunk);
+    		port.on("data", chunk => {
+    			for (const c of chunk) {
+    				printToLine(String.fromCharCode(c));
+    			}
+
     			$$invalidate(1, rxData = acc);
     		});
 
@@ -599,7 +822,7 @@ var app = (function () {
     			port.write(key);
 
     			if (localEcho) {
-    				acc.push(key);
+    				printToLine(key);
     				$$invalidate(1, rxData = acc);
     			}
     		};
@@ -629,8 +852,8 @@ var app = (function () {
     	}
 
     	$$self.$set = $$props => {
-    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
-    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(2, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(3, localEcho = $$props.localEcho);
     	};
 
     	$$self.$capture_state = () => ({
@@ -642,34 +865,34 @@ var app = (function () {
     		localEcho,
     		div,
     		autoscroll,
-    		rxData,
     		acc,
-    		line,
+    		rxData,
+    		printToLine,
+    		String,
     		document,
     		console
     	});
 
     	$$self.$inject_state = $$props => {
-    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
-    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(2, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(3, localEcho = $$props.localEcho);
     		if ("div" in $$props) $$invalidate(0, div = $$props.div);
     		if ("autoscroll" in $$props) autoscroll = $$props.autoscroll;
-    		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
     		if ("acc" in $$props) acc = $$props.acc;
-    		if ("line" in $$props) $$invalidate(2, line = $$props.line);
+    		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
     	};
 
     	if ($$props && "$$inject" in $$props) {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [div, rxData, line, config, localEcho, autoscroll, acc, div_1_binding];
+    	return [div, rxData, config, localEcho, autoscroll, acc, printToLine, div_1_binding];
     }
 
     class Terminal extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance, create_fragment, safe_not_equal, { config: 3, localEcho: 4 });
+    		init(this, options, instance, create_fragment, safe_not_equal, { config: 2, localEcho: 3 });
 
     		dispatch_dev("SvelteRegisterComponent", {
     			component: this,
@@ -707,7 +930,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (16:2) {#each items as item}
+    // (22:2) {#each items as item}
     function create_each_block$1(ctx) {
     	let option;
     	let t0_value = /*item*/ ctx[3] + "";
@@ -722,7 +945,7 @@ var app = (function () {
     			t1 = space();
     			option.__value = option_value_value = /*item*/ ctx[3];
     			option.value = option.__value;
-    			add_location(option, file$1, 16, 4, 243);
+    			add_location(option, file$1, 22, 4, 290);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, option, anchor);
@@ -747,7 +970,7 @@ var app = (function () {
     		block,
     		id: create_each_block$1.name,
     		type: "each",
-    		source: "(16:2) {#each items as item}",
+    		source: "(22:2) {#each items as item}",
     		ctx
     	});
 
@@ -773,8 +996,9 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
+    			attr_dev(select, "class", "svelte-hdynwn");
     			if (/*value*/ ctx[0] === void 0) add_render_callback(() => /*select_change_handler*/ ctx[2].call(select));
-    			add_location(select, file$1, 14, 0, 187);
+    			add_location(select, file$1, 20, 0, 234);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -927,19 +1151,19 @@ var app = (function () {
 
     function create_fragment$2(ctx) {
     	let form;
-    	let button;
-    	let t0;
-    	let button_disabled_value;
-    	let t1;
     	let updating_value;
-    	let t2;
+    	let t0;
     	let updating_value_1;
-    	let t3;
+    	let t1;
     	let updating_value_2;
-    	let t4;
+    	let t2;
     	let updating_value_3;
-    	let t5;
+    	let t3;
     	let updating_value_4;
+    	let t4;
+    	let button;
+    	let t5;
+    	let button_disabled_value;
     	let current;
     	let dispose;
 
@@ -1011,48 +1235,45 @@ var app = (function () {
     	const block = {
     		c: function create() {
     			form = element("form");
-    			button = element("button");
-    			t0 = text("Connect");
-    			t1 = space();
     			create_component(dropdown0.$$.fragment);
-    			t2 = space();
+    			t0 = space();
     			create_component(dropdown1.$$.fragment);
-    			t3 = space();
+    			t1 = space();
     			create_component(dropdown2.$$.fragment);
-    			t4 = space();
+    			t2 = space();
     			create_component(dropdown3.$$.fragment);
-    			t5 = space();
+    			t3 = space();
     			create_component(dropdown4.$$.fragment);
+    			t4 = space();
+    			button = element("button");
+    			t5 = text("Connect");
     			button.disabled = button_disabled_value = /*path*/ ctx[1] === emptyPath;
     			attr_dev(button, "type", "submit");
-    			add_location(button, file$2, 44, 1, 889);
-    			add_location(form, file$2, 43, 0, 841);
+    			attr_dev(button, "class", "svelte-18exrwa");
+    			add_location(button, file$2, 52, 1, 1183);
+    			add_location(form, file$2, 46, 0, 868);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, form, anchor);
-    			append_dev(form, button);
-    			append_dev(button, t0);
-    			append_dev(form, t1);
     			mount_component(dropdown0, form, null);
-    			append_dev(form, t2);
+    			append_dev(form, t0);
     			mount_component(dropdown1, form, null);
-    			append_dev(form, t3);
+    			append_dev(form, t1);
     			mount_component(dropdown2, form, null);
-    			append_dev(form, t4);
+    			append_dev(form, t2);
     			mount_component(dropdown3, form, null);
-    			append_dev(form, t5);
+    			append_dev(form, t3);
     			mount_component(dropdown4, form, null);
+    			append_dev(form, t4);
+    			append_dev(form, button);
+    			append_dev(button, t5);
     			current = true;
     			dispose = listen_dev(form, "submit", prevent_default(/*handleSubmit*/ ctx[10]), false, true, false);
     		},
     		p: function update(ctx, [dirty]) {
-    			if (!current || dirty & /*path*/ 2 && button_disabled_value !== (button_disabled_value = /*path*/ ctx[1] === emptyPath)) {
-    				prop_dev(button, "disabled", button_disabled_value);
-    			}
-
     			const dropdown0_changes = {};
     			if (dirty & /*paths*/ 1) dropdown0_changes.items = /*paths*/ ctx[0];
 
@@ -1099,6 +1320,10 @@ var app = (function () {
     			}
 
     			dropdown4.$set(dropdown4_changes);
+
+    			if (!current || dirty & /*path*/ 2 && button_disabled_value !== (button_disabled_value = /*path*/ ctx[1] === emptyPath)) {
+    				prop_dev(button, "disabled", button_disabled_value);
+    			}
     		},
     		i: function intro(local) {
     			if (current) return;
@@ -1366,9 +1591,11 @@ var app = (function () {
     }
 
     /* src/App.svelte generated by Svelte v3.19.1 */
+    const file$3 = "src/App.svelte";
 
-    // (14:0) {:else}
+    // (21:1) {:else}
     function create_else_block(ctx) {
+    	let div;
     	let t;
     	let current;
 
@@ -1384,14 +1611,17 @@ var app = (function () {
 
     	const block = {
     		c: function create() {
+    			div = element("div");
     			create_component(statusline.$$.fragment);
     			t = space();
     			create_component(terminal.$$.fragment);
+    			add_location(div, file$3, 21, 2, 443);
     		},
     		m: function mount(target, anchor) {
-    			mount_component(statusline, target, anchor);
-    			insert_dev(target, t, anchor);
-    			mount_component(terminal, target, anchor);
+    			insert_dev(target, div, anchor);
+    			mount_component(statusline, div, null);
+    			append_dev(div, t);
+    			mount_component(terminal, div, null);
     			current = true;
     		},
     		p: function update(ctx, dirty) {
@@ -1414,9 +1644,9 @@ var app = (function () {
     			current = false;
     		},
     		d: function destroy(detaching) {
-    			destroy_component(statusline, detaching);
-    			if (detaching) detach_dev(t);
-    			destroy_component(terminal, detaching);
+    			if (detaching) detach_dev(div);
+    			destroy_component(statusline);
+    			destroy_component(terminal);
     		}
     	};
 
@@ -1424,16 +1654,21 @@ var app = (function () {
     		block,
     		id: create_else_block.name,
     		type: "else",
-    		source: "(14:0) {:else}",
+    		source: "(21:1) {:else}",
     		ctx
     	});
 
     	return block;
     }
 
-    // (12:0) {#if !config}
+    // (14:1) {#if !config}
     function create_if_block(ctx) {
+    	let div1;
     	let updating_config;
+    	let t0;
+    	let div0;
+    	let h1;
+    	let div1_transition;
     	let current;
 
     	function configureterminal_config_binding(value) {
@@ -1455,10 +1690,25 @@ var app = (function () {
 
     	const block = {
     		c: function create() {
+    			div1 = element("div");
     			create_component(configureterminal.$$.fragment);
+    			t0 = space();
+    			div0 = element("div");
+    			h1 = element("h1");
+    			h1.textContent = "Serial Terminal";
+    			attr_dev(h1, "class", "svelte-39l9iw");
+    			add_location(h1, file$3, 17, 4, 388);
+    			attr_dev(div0, "id", "welcome");
+    			attr_dev(div0, "class", "svelte-39l9iw");
+    			add_location(div0, file$3, 16, 3, 365);
+    			add_location(div1, file$3, 14, 2, 295);
     		},
     		m: function mount(target, anchor) {
-    			mount_component(configureterminal, target, anchor);
+    			insert_dev(target, div1, anchor);
+    			mount_component(configureterminal, div1, null);
+    			append_dev(div1, t0);
+    			append_dev(div1, div0);
+    			append_dev(div0, h1);
     			current = true;
     		},
     		p: function update(ctx, dirty) {
@@ -1475,14 +1725,24 @@ var app = (function () {
     		i: function intro(local) {
     			if (current) return;
     			transition_in(configureterminal.$$.fragment, local);
+
+    			add_render_callback(() => {
+    				if (!div1_transition) div1_transition = create_bidirectional_transition(div1, fade, {}, true);
+    				div1_transition.run(1);
+    			});
+
     			current = true;
     		},
     		o: function outro(local) {
     			transition_out(configureterminal.$$.fragment, local);
+    			if (!div1_transition) div1_transition = create_bidirectional_transition(div1, fade, {}, false);
+    			div1_transition.run(0);
     			current = false;
     		},
     		d: function destroy(detaching) {
-    			destroy_component(configureterminal, detaching);
+    			if (detaching) detach_dev(div1);
+    			destroy_component(configureterminal);
+    			if (detaching && div1_transition) div1_transition.end();
     		}
     	};
 
@@ -1490,7 +1750,7 @@ var app = (function () {
     		block,
     		id: create_if_block.name,
     		type: "if",
-    		source: "(12:0) {#if !config}",
+    		source: "(14:1) {#if !config}",
     		ctx
     	});
 
@@ -1498,9 +1758,9 @@ var app = (function () {
     }
 
     function create_fragment$4(ctx) {
+    	let main;
     	let current_block_type_index;
     	let if_block;
-    	let if_block_anchor;
     	let current;
     	const if_block_creators = [create_if_block, create_else_block];
     	const if_blocks = [];
@@ -1515,15 +1775,17 @@ var app = (function () {
 
     	const block = {
     		c: function create() {
+    			main = element("main");
     			if_block.c();
-    			if_block_anchor = empty();
+    			attr_dev(main, "class", "svelte-39l9iw");
+    			add_location(main, file$3, 12, 0, 271);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
     		m: function mount(target, anchor) {
-    			if_blocks[current_block_type_index].m(target, anchor);
-    			insert_dev(target, if_block_anchor, anchor);
+    			insert_dev(target, main, anchor);
+    			if_blocks[current_block_type_index].m(main, null);
     			current = true;
     		},
     		p: function update(ctx, [dirty]) {
@@ -1548,7 +1810,7 @@ var app = (function () {
     				}
 
     				transition_in(if_block, 1);
-    				if_block.m(if_block_anchor.parentNode, if_block_anchor);
+    				if_block.m(main, null);
     			}
     		},
     		i: function intro(local) {
@@ -1561,8 +1823,8 @@ var app = (function () {
     			current = false;
     		},
     		d: function destroy(detaching) {
-    			if_blocks[current_block_type_index].d(detaching);
-    			if (detaching) detach_dev(if_block_anchor);
+    			if (detaching) detach_dev(main);
+    			if_blocks[current_block_type_index].d();
     		}
     	};
 
@@ -1587,6 +1849,7 @@ var app = (function () {
     	}
 
     	$$self.$capture_state = () => ({
+    		fade,
     		Terminal,
     		ConfigureTerminal,
     		StatusLine,

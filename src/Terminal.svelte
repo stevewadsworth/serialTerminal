@@ -3,19 +3,26 @@
   import serial from "./modules/serial";
 
   export let config = {};
-  export let localEcho = true;
+  export let localEcho = false;
 
   let div;
   let autoscroll;
-  let rxData = [];
-  let acc = [];
-  let line = "";
+  let acc = [""];
+  let rxData = acc;
+
+  const printToLine = (c) => {
+    acc[acc.length -1] += c;
+    if (c === 0x0a) {
+      acc.push(new String());
+    }
+  }
 
   onMount(async function() {
     const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
-    const parser = serial.addReadlineParser(port);
-    parser.on("data", chunk => {
-      acc.push(chunk);
+    port.on("data", chunk => {
+      for (const c of chunk) {
+        printToLine(String.fromCharCode(c));
+      }
       rxData = acc;
     });
 
@@ -30,7 +37,7 @@
       port.write(key);
 
       if (localEcho) {
-        acc.push(key);
+        printToLine(key);
         rxData = acc;
       }
     };
@@ -56,6 +63,7 @@
     height: 100%;
     width: 100%;
     overflow: scroll;
+    padding: 1rem;
   }
 
   div > pre {
