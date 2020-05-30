@@ -1,5 +1,7 @@
 # Serial Terminal
 
+[![Known Vulnerabilities](https://snyk.io/test/github/stevewadsworth/serialTerminal/badge.svg?targetFile=package.json)](https://snyk.io/test/github/stevewadsworth/serialTerminal?targetFile=package.json)
+
 This is really an experiment in developing Electron apps with Svelte.
 I chose to develop a serial terminal as I needed one and I wasn't happy with the options available! Hopefully this will develop into something useful (hey, it has already been useful for me to see how cool it is developing apps with Electron and Svelte).
 

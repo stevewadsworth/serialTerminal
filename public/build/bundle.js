@@ -198,6 +198,9 @@ var app = (function () {
     function afterUpdate(fn) {
         get_current_component().$$.after_update.push(fn);
     }
+    function onDestroy(fn) {
+        get_current_component().$$.on_destroy.push(fn);
+    }
 
     const dirty_components = [];
     const binding_callbacks = [];
@@ -662,14 +665,14 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[8] = list[i];
+    	child_ctx[10] = list[i];
     	return child_ctx;
     }
 
-    // (77:2) {#each rxData as line}
+    // (98:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
-    	let t_value = /*line*/ ctx[8] + "";
+    	let t_value = /*line*/ ctx[10] + "";
     	let t;
 
     	const block = {
@@ -677,14 +680,14 @@ var app = (function () {
     			pre = element("pre");
     			t = text(t_value);
     			attr_dev(pre, "class", "svelte-1otaxul");
-    			add_location(pre, file, 77, 4, 1569);
+    			add_location(pre, file, 98, 4, 1890);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
     			append_dev(pre, t);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[8] + "")) set_data_dev(t, t_value);
+    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[10] + "")) set_data_dev(t, t_value);
     		},
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(pre);
@@ -695,7 +698,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(77:2) {#each rxData as line}",
+    		source: "(98:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -721,7 +724,7 @@ var app = (function () {
     			}
 
     			attr_dev(div_1, "class", "svelte-1otaxul");
-    			add_location(div_1, file, 75, 0, 1518);
+    			add_location(div_1, file, 96, 0, 1839);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -733,7 +736,7 @@ var app = (function () {
     				each_blocks[i].m(div_1, null);
     			}
 
-    			/*div_1_binding*/ ctx[7](div_1);
+    			/*div_1_binding*/ ctx[9](div_1);
     		},
     		p: function update(ctx, [dirty]) {
     			if (dirty & /*rxData*/ 2) {
@@ -765,7 +768,7 @@ var app = (function () {
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(div_1);
     			destroy_each(each_blocks, detaching);
-    			/*div_1_binding*/ ctx[7](null);
+    			/*div_1_binding*/ ctx[9](null);
     		}
     	};
 
@@ -783,10 +786,12 @@ var app = (function () {
     function instance($$self, $$props, $$invalidate) {
     	let { config = {} } = $$props;
     	let { localEcho = false } = $$props;
+    	let { isConnected = false } = $$props;
     	let div;
     	let autoscroll;
     	let acc = [""];
     	let rxData = acc;
+    	let port;
 
     	const printToLine = c => {
     		acc[acc.length - 1] += c;
@@ -797,7 +802,17 @@ var app = (function () {
     	};
 
     	onMount(async function () {
-    		const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
+    		port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
+
+    		port.on("error", err => {
+    			console.error("Error", err);
+    			$$invalidate(2, isConnected = false);
+    		});
+
+    		port.on("close", err => {
+    			console.log("Closed", err);
+    			$$invalidate(2, isConnected = false);
+    		});
 
     		port.on("data", chunk => {
     			for (const c of chunk) {
@@ -806,6 +821,8 @@ var app = (function () {
 
     			$$invalidate(1, rxData = acc);
     		});
+
+    		$$invalidate(2, isConnected = true);
 
     		document.onkeypress = e => {
     			console.log(e);
@@ -828,6 +845,10 @@ var app = (function () {
     		};
     	});
 
+    	onDestroy(() => {
+    		port.close();
+    	});
+
     	beforeUpdate(() => {
     		// Only scroll if we are at the bottom already
     		autoscroll = div && div.offsetHeight + div.scrollTop > div.scrollHeight - 20;
@@ -839,7 +860,7 @@ var app = (function () {
     		}
     	});
 
-    	const writable_props = ["config", "localEcho"];
+    	const writable_props = ["config", "localEcho", "isConnected"];
 
     	Object.keys($$props).forEach(key => {
     		if (!~writable_props.indexOf(key) && key.slice(0, 2) !== "$$") console_1.warn(`<Terminal> was created with unknown prop '${key}'`);
@@ -852,47 +873,64 @@ var app = (function () {
     	}
 
     	$$self.$set = $$props => {
-    		if ("config" in $$props) $$invalidate(2, config = $$props.config);
-    		if ("localEcho" in $$props) $$invalidate(3, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
+    		if ("isConnected" in $$props) $$invalidate(2, isConnected = $$props.isConnected);
     	};
 
     	$$self.$capture_state = () => ({
     		onMount,
+    		onDestroy,
     		beforeUpdate,
     		afterUpdate,
     		serial,
     		config,
     		localEcho,
+    		isConnected,
     		div,
     		autoscroll,
     		acc,
     		rxData,
+    		port,
     		printToLine,
     		String,
-    		document,
-    		console
+    		console,
+    		document
     	});
 
     	$$self.$inject_state = $$props => {
-    		if ("config" in $$props) $$invalidate(2, config = $$props.config);
-    		if ("localEcho" in $$props) $$invalidate(3, localEcho = $$props.localEcho);
+    		if ("config" in $$props) $$invalidate(3, config = $$props.config);
+    		if ("localEcho" in $$props) $$invalidate(4, localEcho = $$props.localEcho);
+    		if ("isConnected" in $$props) $$invalidate(2, isConnected = $$props.isConnected);
     		if ("div" in $$props) $$invalidate(0, div = $$props.div);
     		if ("autoscroll" in $$props) autoscroll = $$props.autoscroll;
     		if ("acc" in $$props) acc = $$props.acc;
     		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
+    		if ("port" in $$props) port = $$props.port;
     	};
 
     	if ($$props && "$$inject" in $$props) {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [div, rxData, config, localEcho, autoscroll, acc, printToLine, div_1_binding];
+    	return [
+    		div,
+    		rxData,
+    		isConnected,
+    		config,
+    		localEcho,
+    		autoscroll,
+    		acc,
+    		port,
+    		printToLine,
+    		div_1_binding
+    	];
     }
 
     class Terminal extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance, create_fragment, safe_not_equal, { config: 2, localEcho: 3 });
+    		init(this, options, instance, create_fragment, safe_not_equal, { config: 3, localEcho: 4, isConnected: 2 });
 
     		dispatch_dev("SvelteRegisterComponent", {
     			component: this,
@@ -915,6 +953,14 @@ var app = (function () {
     	}
 
     	set localEcho(value) {
+    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get isConnected() {
+    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set isConnected(value) {
     		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }

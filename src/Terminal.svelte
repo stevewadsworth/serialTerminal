@@ -1,14 +1,18 @@
 <script>
-  import { onMount, beforeUpdate, afterUpdate } from "svelte";
+  import { onMount, onDestroy, beforeUpdate, afterUpdate } from "svelte";
   import serial from "./modules/serial";
 
   export let config = {};
   export let localEcho = false;
 
+  export let isConnected = false;
+
   let div;
   let autoscroll;
   let acc = [""];
   let rxData = acc;
+
+  let port;
 
   const printToLine = (c) => {
     acc[acc.length -1] += c;
@@ -18,13 +22,26 @@
   }
 
   onMount(async function() {
-    const port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
+    port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
+
+    port.on('error', err => {
+      console.error('Error', err);
+      isConnected = false;
+    })
+
+    port.on('close', err => {
+      console.log('Closed', err)
+      isConnected = false;
+    })
+
     port.on("data", chunk => {
       for (const c of chunk) {
         printToLine(String.fromCharCode(c));
       }
       rxData = acc;
     });
+
+    isConnected = true;
 
     document.onkeypress = e => {
       console.log(e);
@@ -42,6 +59,10 @@
       }
     };
   });
+
+  onDestroy(() => {
+    port.close();
+  })
 
   beforeUpdate(() => {
     // Only scroll if we are at the bottom already
