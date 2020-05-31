@@ -1,9 +1,16 @@
 <script>
+  const { remote } = require('electron')
+  const { Menu, MenuItem } = remote
+
   import { onMount, onDestroy, beforeUpdate, afterUpdate } from "svelte";
   import serial from "./modules/serial";
 
-  export let config = {};
-  export let localEcho = false;
+  export let path;
+  export let baudRate;
+  export let dataBits;
+  export let parity;
+  export let stopBits;
+  export let localEcho;
 
   export let isConnected = false;
 
@@ -21,8 +28,24 @@
     }
   }
 
+  const keyPressed = (e) => {
+    console.log(e);
+    // Auto scroll to the bottom on keypress
+    div.scrollTo(0, div.scrollHeight);
+    let key = e.key;
+    if (e.keyCode === 13) {
+      key = "\n";
+    }
+    port.write(key);
+
+    if (localEcho) {
+      printToLine(key);
+      rxData = acc;
+    }
+  };
+
   onMount(async function() {
-    port = serial.openPort(config.path, config.baudRate, config.dataBits, config.parity, config.stopBits);
+    port = serial.openPort(path, baudRate, dataBits, parity, stopBits);
 
     port.on('error', err => {
       console.error('Error', err);
@@ -43,22 +66,8 @@
 
     isConnected = true;
 
-    document.onkeypress = e => {
-      console.log(e);
-      // Auto scroll to the bottom on keypress
-      div.scrollTo(0, div.scrollHeight);
-      let key = e.key;
-      if (e.keyCode === 13) {
-        key = "\n";
-      }
-      port.write(key);
-
-      if (localEcho) {
-        printToLine(key);
-        rxData = acc;
-      }
-    };
-  });
+    document.onkeypress = keyPressed;
+});
 
   onDestroy(() => {
     port.close();
@@ -75,6 +84,21 @@
       div.scrollTo(0, div.scrollHeight);
     }
   });
+
+  const menu = new Menu()
+  menu.append(new MenuItem({ label: 'Local Echo', type: 'checkbox', checked: localEcho, click() {localEcho = !localEcho} }))
+  menu.append(new MenuItem({ type: 'separator' }))
+  menu.append(new MenuItem({ label: 'Disconnect', click() { console.log('Disconnecting'); isConnected = false; } }))
+  menu.append(new MenuItem({ type: 'separator' }))
+  menu.append(new MenuItem({ role: 'selectAll' }))
+  menu.append(new MenuItem({ role: 'copy' }))
+ // menu.append(new MenuItem({ role: 'paste' })) Paste isn't woring for some reason
+
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    menu.popup({ window: remote.getCurrentWindow() })
+  }, false);
+
 </script>
 
 <style>

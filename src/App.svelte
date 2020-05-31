@@ -20,8 +20,8 @@
 		</div>
 	{:else}
 		<div>
-			<StatusLine config={config}/>
-			<Terminal config={config}/>
+			<StatusLine path={config.path} baudRate={config.baudRate} dataBits={config.dataBits} parity={config.parity} stopBits={config.stopBits}/>
+			<Terminal path={config.path} baudRate={config.baudRate} dataBits={config.dataBits} parity={config.parity} stopBits={config.stopBits} localEcho={config.localEcho}/>
 		</div>
 	{/if}
 </main>

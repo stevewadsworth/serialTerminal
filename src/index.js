@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow , Menu, dialog } = require('electron');
 const path = require('path');
 
 // Live Reload
@@ -14,20 +14,151 @@ if (require('electron-squirrel-startup')) {
 }
 
 const createWindow = () => {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  let options = {
     width: 800,
     height: 600,
     webPreferences: {
       nodeIntegration: true
     }
-  });
+  };
+
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow) {
+    let pos = focusedWindow.getPosition();
+    options.x = pos[0] + 20;
+    options.y = pos[1] + 20;
+  }
+
+  // Create the browser window.
+  const mainWindow = new BrowserWindow(options);
 
   // and load the index.html of the app.
   mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
 
+  // Set up the Dock menu
+  const dockMenu = Menu.buildFromTemplate([
+    {
+      label: 'New Window',
+      click() { createWindow(); }
+    }
+  ])
+  app.dock.setMenu(dockMenu)
+
+  const isMac = process.platform === 'darwin'
+
+  const template = [
+    // { role: 'appMenu' }
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideothers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    // { role: 'fileMenu' }
+    {
+      label: 'File',
+      submenu: [
+        ...(isMac ? [
+          {
+            label: 'New Window',
+            accelerator: 'Cmd+N',
+            click() { createWindow(); }
+          },
+          { type: 'separator' },
+          { role: 'close' }
+        ] : [
+          { role: 'quit' }
+        ])
+      ]
+    },
+    // { role: 'editMenu' }
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac ? [
+          { role: 'selectAll' },
+          { type: 'separator' },
+        ] : [
+            { type: 'separator' },
+            { role: 'selectAll' }
+          ])
+      ]
+    },
+    // { role: 'viewMenu' }
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forcereload' },
+        { role: 'toggledevtools' },
+        { type: 'separator' },
+        { role: 'resetzoom' },
+        { role: 'zoomin' },
+        { role: 'zoomout' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Terminal',
+      submenu: [
+        {
+          label: 'Toggle Local Echo',
+          click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({type: "error", message:'Not yet implemented!'}); }
+        },
+        { type: 'separator' },
+        {
+          label: 'Disconect',
+          click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({ type: "error", message: 'Not yet implemented!' }); }
+        }
+      ]
+    },
+    // { role: 'windowMenu' }
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'window' }
+        ] : [
+            { role: 'close' }
+          ])
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Learn More',
+          click: async () => {
+            const { shell } = require('electron')
+            await shell.openExternal('https://github.com/stevewadsworth/serialTerminal')
+          }
+        }
+      ]
+    }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+
+
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  //mainWindow.webContents.openDevTools();
 };
 
 // This method will be called when Electron has finished

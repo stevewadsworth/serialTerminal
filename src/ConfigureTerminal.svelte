@@ -12,12 +12,14 @@
   let stopBitsList = [1, 2];
   let parityList = ['none', 'even', 'odd'];
   let dataBitsList = [7, 8];
+  let localEchoList = ['no', 'yes'];
 
   let path = emptyPath;
   let baudRate = 115200;
   let stopBits = 1;
   let parity = 'none';
   let dataBits = 8;
+  let localEcho = 'no';
 
 	function handleSubmit() {
     config = {
@@ -25,7 +27,8 @@
       baudRate,
       dataBits,
       parity,
-      stopBits
+      stopBits,
+      localEcho: localEcho === 'yes' ? true : false
     }
 	}
 
@@ -40,16 +43,23 @@
 
 <style>
 button {
-  float: right;
+  flex-grow: 1;
+  margin: 0.5rem;
+}
+
+form {
+  display: flex;
+  flex-direction: row;
 }
 </style>
 
 <form on:submit|preventDefault={handleSubmit}>
-  <DropDown bind:value={path} items={paths}/>
-  <DropDown bind:value={baudRate} items={baudRates}/>
-  <DropDown bind:value={dataBits} items={dataBitsList}/>
-  <DropDown bind:value={parity} items={parityList}/>
-  <DropDown bind:value={stopBits} items={stopBitsList}/>
+  <DropDown label='Path' bind:value={path} items={paths}/>
+  <DropDown label='Baud' bind:value={baudRate} items={baudRates}/>
+  <DropDown label='Data Bits' bind:value={dataBits} items={dataBitsList}/>
+  <DropDown label='Parity' bind:value={parity} items={parityList}/>
+  <DropDown label='Stop Bits' bind:value={stopBits} items={stopBitsList}/>
+  <DropDown label='Local Echo' bind:value={localEcho} items={localEchoList}/>
 	<button disabled={path === emptyPath} type=submit>
 		Connect
 	</button>
