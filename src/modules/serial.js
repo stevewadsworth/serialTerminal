@@ -19,7 +19,7 @@ export const openPort = (path, baudRate, dataBits, parity, stopBits) => {
   }
 
   const port = new SerialPort(path, openOptions)
-  port.pipe(process.stdout)
+//  port.pipe(process.stdout)
   return port
 }
 

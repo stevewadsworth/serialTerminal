@@ -5,13 +5,19 @@
 	import StatusLine from './StatusLine.svelte'
 
 	let config = null;
+	let connected = false
 
 	document.title = "Serial Terminal";
 
+	$: {
+		if (config) {
+			connected = true
+		}
+	}
 </script>
 
 <main>
-	{#if !config}
+	{#if !connected}
 		<div transition:fade>
 			<ConfigureTerminal bind:config={config}/>
 			<div id='welcome'>
@@ -19,10 +25,8 @@
 			</div>
 		</div>
 	{:else}
-		<div>
-			<StatusLine path={config.path} baudRate={config.baudRate} dataBits={config.dataBits} parity={config.parity} stopBits={config.stopBits}/>
-			<Terminal path={config.path} baudRate={config.baudRate} dataBits={config.dataBits} parity={config.parity} stopBits={config.stopBits} localEcho={config.localEcho}/>
-		</div>
+		<StatusLine {...config}/>
+		<Terminal {...config}/>
 	{/if}
 </main>
 

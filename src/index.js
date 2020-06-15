@@ -15,7 +15,7 @@ if (require('electron-squirrel-startup')) {
 
 const createWindow = () => {
   let options = {
-    width: 800,
+    width: 1000,
     height: 600,
     webPreferences: {
       nodeIntegration: true
@@ -109,20 +109,20 @@ const createWindow = () => {
         { role: 'togglefullscreen' }
       ]
     },
-    {
-      label: 'Terminal',
-      submenu: [
-        {
-          label: 'Toggle Local Echo',
-          click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({type: "error", message:'Not yet implemented!'}); }
-        },
-        { type: 'separator' },
-        {
-          label: 'Disconect',
-          click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({ type: "error", message: 'Not yet implemented!' }); }
-        }
-      ]
-    },
+    // {
+    //   label: 'Terminal',
+    //   submenu: [
+    //     {
+    //       label: 'Toggle Local Echo',
+    //       click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({type: "error", message:'Not yet implemented!'}); }
+    //     },
+    //     { type: 'separator' },
+    //     {
+    //       label: 'Disconect',
+    //       click() { console.log(BrowserWindow.getFocusedWindow()); dialog.showMessageBoxSync({ type: "error", message: 'Not yet implemented!' }); }
+    //     }
+    //   ]
+    // },
     // { role: 'windowMenu' }
     {
       label: 'Window',

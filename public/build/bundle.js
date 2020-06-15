@@ -5,6 +5,12 @@ var app = (function () {
 
     function noop() { }
     const identity = x => x;
+    function assign(tar, src) {
+        // @ts-ignore
+        for (const k in src)
+            tar[k] = src[k];
+        return tar;
+    }
     function add_location(element, file, line, column, char) {
         element.__svelte_meta = {
             loc: { file, line, column, char }
@@ -427,6 +433,43 @@ var app = (function () {
 
     const globals = (typeof window !== 'undefined' ? window : global);
 
+    function get_spread_update(levels, updates) {
+        const update = {};
+        const to_null_out = {};
+        const accounted_for = { $$scope: 1 };
+        let i = levels.length;
+        while (i--) {
+            const o = levels[i];
+            const n = updates[i];
+            if (n) {
+                for (const key in o) {
+                    if (!(key in n))
+                        to_null_out[key] = 1;
+                }
+                for (const key in n) {
+                    if (!accounted_for[key]) {
+                        update[key] = n[key];
+                        accounted_for[key] = 1;
+                    }
+                }
+                levels[i] = n;
+            }
+            else {
+                for (const key in o) {
+                    accounted_for[key] = 1;
+                }
+            }
+        }
+        for (const key in to_null_out) {
+            if (!(key in update))
+                update[key] = undefined;
+        }
+        return update;
+    }
+    function get_spread_object(spread_props) {
+        return typeof spread_props === 'object' && spread_props !== null ? spread_props : {};
+    }
+
     function bind(component, name, callback) {
         const index = component.$$.props[name];
         if (index !== undefined) {
@@ -652,7 +695,7 @@ var app = (function () {
       };
 
       const port = new SerialPort(path, openOptions);
-      port.pipe(process.stdout);
+    //  port.pipe(process.stdout)
       return port
     };
 
@@ -665,29 +708,29 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[19] = list[i];
+    	child_ctx[21] = list[i];
     	return child_ctx;
     }
 
-    // (122:2) {#each rxData as line}
+    // (160:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
-    	let t_value = /*line*/ ctx[19] + "";
+    	let t_value = /*line*/ ctx[21] + "";
     	let t;
 
     	const block = {
     		c: function create() {
     			pre = element("pre");
     			t = text(t_value);
-    			attr_dev(pre, "class", "svelte-1otaxul");
-    			add_location(pre, file, 122, 4, 2710);
+    			attr_dev(pre, "class", "svelte-nmv4vc");
+    			add_location(pre, file, 160, 4, 3472);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
     			append_dev(pre, t);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[19] + "")) set_data_dev(t, t_value);
+    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[21] + "")) set_data_dev(t, t_value);
     		},
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(pre);
@@ -698,7 +741,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(122:2) {#each rxData as line}",
+    		source: "(160:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -723,8 +766,8 @@ var app = (function () {
     				each_blocks[i].c();
     			}
 
-    			attr_dev(div_1, "class", "svelte-1otaxul");
-    			add_location(div_1, file, 120, 0, 2659);
+    			attr_dev(div_1, "class", "svelte-nmv4vc");
+    			add_location(div_1, file, 158, 0, 3421);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -736,7 +779,7 @@ var app = (function () {
     				each_blocks[i].m(div_1, null);
     			}
 
-    			/*div_1_binding*/ ctx[18](div_1);
+    			/*div_1_binding*/ ctx[20](div_1);
     		},
     		p: function update(ctx, [dirty]) {
     			if (dirty & /*rxData*/ 2) {
@@ -768,7 +811,7 @@ var app = (function () {
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(div_1);
     			destroy_each(each_blocks, detaching);
-    			/*div_1_binding*/ ctx[18](null);
+    			/*div_1_binding*/ ctx[20](null);
     		}
     	};
 
@@ -785,7 +828,7 @@ var app = (function () {
 
     function instance($$self, $$props, $$invalidate) {
     	const { remote } = require("electron");
-    	const { Menu, MenuItem } = remote;
+    	const { Menu, MenuItem, clipboard } = remote;
     	let { path } = $$props;
     	let { baudRate } = $$props;
     	let { dataBits } = $$props;
@@ -800,31 +843,51 @@ var app = (function () {
     	let port;
 
     	const printToLine = c => {
-    		acc[acc.length - 1] += c;
+    		let str = acc[acc.length - 1];
 
-    		if (c === 10) {
+    		if (c === "\b") {
+    			str = str.slice(0, -1);
+    		} else {
+    			str += c;
+    		}
+
+    		acc[acc.length - 1] = str;
+
+    		if (c === "\n") {
     			acc.push(new String());
     		}
     	};
 
-    	const keyPressed = e => {
-    		console.log(e);
-
-    		// Auto scroll to the bottom on keypress
-    		div.scrollTo(0, div.scrollHeight);
-
-    		let key = e.key;
-
-    		if (e.keyCode === 13) {
-    			key = "\n";
+    	const normaliseKey = key => {
+    		if (key.length > 1) {
+    			switch (key) {
+    				case "Enter":
+    					key = "\n";
+    					break;
+    				case "Backspace":
+    					key = "\b";
+    					break;
+    				default:
+    					console.log(key);
+    					key = "";
+    					break;
+    			}
     		}
 
-    		port.write(key);
+    		return key;
+    	};
+
+    	const keyPressed = key => {
+    		key = normaliseKey(key);
+    		port.write(key, "utf8");
 
     		if (localEcho) {
     			printToLine(key);
     			$$invalidate(1, rxData = acc);
     		}
+
+    		// Auto scroll to the bottom on keypress
+    		div.scrollTo(0, div.scrollHeight);
     	};
 
     	onMount(async function () {
@@ -849,7 +912,25 @@ var app = (function () {
     		});
 
     		$$invalidate(3, isConnected = true);
-    		document.onkeypress = keyPressed;
+
+    		document.onkeydown = e => {
+    			if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key != "Shift") {
+    				keyPressed(e.key);
+    				e.preventDefault();
+    			}
+    		};
+
+    		// Handle Paste events. We get Copy for free, but Paste needs a bit of work.
+    		div.addEventListener("paste", event => {
+    			event.preventDefault();
+    			const text = clipboard.readText();
+
+    			for (const c of text) {
+    				keyPressed(c);
+    			}
+
+    			event.preventDefault();
+    		});
     	});
 
     	onDestroy(() => {
@@ -867,6 +948,7 @@ var app = (function () {
     		}
     	});
 
+    	// Add a right click context menu
     	const menu = new Menu();
 
     	menu.append(new MenuItem({
@@ -879,20 +961,10 @@ var app = (function () {
     		}));
 
     	menu.append(new MenuItem({ type: "separator" }));
-
-    	menu.append(new MenuItem({
-    			label: "Disconnect",
-    			click() {
-    				console.log("Disconnecting");
-    				$$invalidate(3, isConnected = false);
-    			}
-    		}));
-
-    	menu.append(new MenuItem({ type: "separator" }));
     	menu.append(new MenuItem({ role: "selectAll" }));
     	menu.append(new MenuItem({ role: "copy" }));
+    	menu.append(new MenuItem({ role: "paste" }));
 
-    	// menu.append(new MenuItem({ role: 'paste' })) Paste isn't woring for some reason
     	window.addEventListener(
     		"contextmenu",
     		e => {
@@ -936,6 +1008,7 @@ var app = (function () {
     		remote,
     		Menu,
     		MenuItem,
+    		clipboard,
     		onMount,
     		onDestroy,
     		beforeUpdate,
@@ -954,6 +1027,7 @@ var app = (function () {
     		rxData,
     		port,
     		printToLine,
+    		normaliseKey,
     		keyPressed,
     		menu,
     		require,
@@ -998,7 +1072,9 @@ var app = (function () {
     		remote,
     		Menu,
     		MenuItem,
+    		clipboard,
     		printToLine,
+    		normaliseKey,
     		keyPressed,
     		menu,
     		div_1_binding
@@ -1949,65 +2025,50 @@ var app = (function () {
     /* src/App.svelte generated by Svelte v3.19.1 */
     const file$3 = "src/App.svelte";
 
-    // (21:1) {:else}
+    // (27:1) {:else}
     function create_else_block(ctx) {
-    	let div;
     	let t;
     	let current;
+    	const statusline_spread_levels = [/*config*/ ctx[0]];
+    	let statusline_props = {};
 
-    	const statusline = new StatusLine({
-    			props: {
-    				path: /*config*/ ctx[0].path,
-    				baudRate: /*config*/ ctx[0].baudRate,
-    				dataBits: /*config*/ ctx[0].dataBits,
-    				parity: /*config*/ ctx[0].parity,
-    				stopBits: /*config*/ ctx[0].stopBits
-    			},
-    			$$inline: true
-    		});
+    	for (let i = 0; i < statusline_spread_levels.length; i += 1) {
+    		statusline_props = assign(statusline_props, statusline_spread_levels[i]);
+    	}
 
-    	const terminal = new Terminal({
-    			props: {
-    				path: /*config*/ ctx[0].path,
-    				baudRate: /*config*/ ctx[0].baudRate,
-    				dataBits: /*config*/ ctx[0].dataBits,
-    				parity: /*config*/ ctx[0].parity,
-    				stopBits: /*config*/ ctx[0].stopBits,
-    				localEcho: /*config*/ ctx[0].localEcho
-    			},
-    			$$inline: true
-    		});
+    	const statusline = new StatusLine({ props: statusline_props, $$inline: true });
+    	const terminal_spread_levels = [/*config*/ ctx[0]];
+    	let terminal_props = {};
+
+    	for (let i = 0; i < terminal_spread_levels.length; i += 1) {
+    		terminal_props = assign(terminal_props, terminal_spread_levels[i]);
+    	}
+
+    	const terminal = new Terminal({ props: terminal_props, $$inline: true });
 
     	const block = {
     		c: function create() {
-    			div = element("div");
     			create_component(statusline.$$.fragment);
     			t = space();
     			create_component(terminal.$$.fragment);
-    			add_location(div, file$3, 21, 2, 443);
     		},
     		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			mount_component(statusline, div, null);
-    			append_dev(div, t);
-    			mount_component(terminal, div, null);
+    			mount_component(statusline, target, anchor);
+    			insert_dev(target, t, anchor);
+    			mount_component(terminal, target, anchor);
     			current = true;
     		},
     		p: function update(ctx, dirty) {
-    			const statusline_changes = {};
-    			if (dirty & /*config*/ 1) statusline_changes.path = /*config*/ ctx[0].path;
-    			if (dirty & /*config*/ 1) statusline_changes.baudRate = /*config*/ ctx[0].baudRate;
-    			if (dirty & /*config*/ 1) statusline_changes.dataBits = /*config*/ ctx[0].dataBits;
-    			if (dirty & /*config*/ 1) statusline_changes.parity = /*config*/ ctx[0].parity;
-    			if (dirty & /*config*/ 1) statusline_changes.stopBits = /*config*/ ctx[0].stopBits;
+    			const statusline_changes = (dirty & /*config*/ 1)
+    			? get_spread_update(statusline_spread_levels, [get_spread_object(/*config*/ ctx[0])])
+    			: {};
+
     			statusline.$set(statusline_changes);
-    			const terminal_changes = {};
-    			if (dirty & /*config*/ 1) terminal_changes.path = /*config*/ ctx[0].path;
-    			if (dirty & /*config*/ 1) terminal_changes.baudRate = /*config*/ ctx[0].baudRate;
-    			if (dirty & /*config*/ 1) terminal_changes.dataBits = /*config*/ ctx[0].dataBits;
-    			if (dirty & /*config*/ 1) terminal_changes.parity = /*config*/ ctx[0].parity;
-    			if (dirty & /*config*/ 1) terminal_changes.stopBits = /*config*/ ctx[0].stopBits;
-    			if (dirty & /*config*/ 1) terminal_changes.localEcho = /*config*/ ctx[0].localEcho;
+
+    			const terminal_changes = (dirty & /*config*/ 1)
+    			? get_spread_update(terminal_spread_levels, [get_spread_object(/*config*/ ctx[0])])
+    			: {};
+
     			terminal.$set(terminal_changes);
     		},
     		i: function intro(local) {
@@ -2022,9 +2083,9 @@ var app = (function () {
     			current = false;
     		},
     		d: function destroy(detaching) {
-    			if (detaching) detach_dev(div);
-    			destroy_component(statusline);
-    			destroy_component(terminal);
+    			destroy_component(statusline, detaching);
+    			if (detaching) detach_dev(t);
+    			destroy_component(terminal, detaching);
     		}
     	};
 
@@ -2032,14 +2093,14 @@ var app = (function () {
     		block,
     		id: create_else_block.name,
     		type: "else",
-    		source: "(21:1) {:else}",
+    		source: "(27:1) {:else}",
     		ctx
     	});
 
     	return block;
     }
 
-    // (14:1) {#if !config}
+    // (20:1) {#if !connected}
     function create_if_block(ctx) {
     	let div1;
     	let updating_config;
@@ -2050,7 +2111,7 @@ var app = (function () {
     	let current;
 
     	function configureterminal_config_binding(value) {
-    		/*configureterminal_config_binding*/ ctx[1].call(null, value);
+    		/*configureterminal_config_binding*/ ctx[2].call(null, value);
     	}
 
     	let configureterminal_props = {};
@@ -2075,11 +2136,11 @@ var app = (function () {
     			h1 = element("h1");
     			h1.textContent = "Serial Terminal";
     			attr_dev(h1, "class", "svelte-39l9iw");
-    			add_location(h1, file$3, 17, 4, 388);
+    			add_location(h1, file$3, 23, 4, 463);
     			attr_dev(div0, "id", "welcome");
     			attr_dev(div0, "class", "svelte-39l9iw");
-    			add_location(div0, file$3, 16, 3, 365);
-    			add_location(div1, file$3, 14, 2, 295);
+    			add_location(div0, file$3, 22, 3, 440);
+    			add_location(div1, file$3, 20, 2, 370);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, div1, anchor);
@@ -2128,7 +2189,7 @@ var app = (function () {
     		block,
     		id: create_if_block.name,
     		type: "if",
-    		source: "(14:1) {#if !config}",
+    		source: "(20:1) {#if !connected}",
     		ctx
     	});
 
@@ -2144,7 +2205,7 @@ var app = (function () {
     	const if_blocks = [];
 
     	function select_block_type(ctx, dirty) {
-    		if (!/*config*/ ctx[0]) return 0;
+    		if (!/*connected*/ ctx[1]) return 0;
     		return 1;
     	}
 
@@ -2156,7 +2217,7 @@ var app = (function () {
     			main = element("main");
     			if_block.c();
     			attr_dev(main, "class", "svelte-39l9iw");
-    			add_location(main, file$3, 12, 0, 271);
+    			add_location(main, file$3, 18, 0, 343);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -2219,6 +2280,7 @@ var app = (function () {
 
     function instance$4($$self, $$props, $$invalidate) {
     	let config = null;
+    	let connected = false;
     	document.title = "Serial Terminal";
 
     	function configureterminal_config_binding(value) {
@@ -2232,18 +2294,30 @@ var app = (function () {
     		ConfigureTerminal,
     		StatusLine,
     		config,
+    		connected,
     		document
     	});
 
     	$$self.$inject_state = $$props => {
     		if ("config" in $$props) $$invalidate(0, config = $$props.config);
+    		if ("connected" in $$props) $$invalidate(1, connected = $$props.connected);
     	};
 
     	if ($$props && "$$inject" in $$props) {
     		$$self.$inject_state($$props.$$inject);
     	}
 
-    	return [config, configureterminal_config_binding];
+    	$$self.$$.update = () => {
+    		if ($$self.$$.dirty & /*config*/ 1) {
+    			 {
+    				if (config) {
+    					$$invalidate(1, connected = true);
+    				}
+    			}
+    		}
+    	};
+
+    	return [config, connected, configureterminal_config_binding];
     }
 
     class App extends SvelteComponentDev {
