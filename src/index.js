@@ -15,6 +15,10 @@ if (require('electron-squirrel-startup')) {
 
 const createWindow = () => {
   let options = {
+    icon:
+      process.platform === 'linux'
+        ? nativeImage.createFromDataURL(require('../icons/icon.png'))
+        : undefined,
     width: 1000,
     height: 600,
     webPreferences: {

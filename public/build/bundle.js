@@ -712,7 +712,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (160:2) {#each rxData as line}
+    // (167:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
     	let t_value = /*line*/ ctx[21] + "";
@@ -723,7 +723,7 @@ var app = (function () {
     			pre = element("pre");
     			t = text(t_value);
     			attr_dev(pre, "class", "svelte-nmv4vc");
-    			add_location(pre, file, 160, 4, 3472);
+    			add_location(pre, file, 167, 4, 3640);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
@@ -741,7 +741,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(160:2) {#each rxData as line}",
+    		source: "(167:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -767,7 +767,7 @@ var app = (function () {
     			}
 
     			attr_dev(div_1, "class", "svelte-nmv4vc");
-    			add_location(div_1, file, 158, 0, 3421);
+    			add_location(div_1, file, 165, 0, 3589);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -836,13 +836,13 @@ var app = (function () {
     	let { stopBits } = $$props;
     	let { localEcho } = $$props;
     	let { isConnected = false } = $$props;
+    	let { scrollBack = 100000 } = $$props; // Default to 100,000 lines of history
     	let div;
     	let autoscroll;
-    	let acc = [""];
-    	let rxData = acc;
+    	let rxData = [""];
     	let port;
 
-    	const printToLine = c => {
+    	const printToLine = (c, acc) => {
     		let str = acc[acc.length - 1];
 
     		if (c === "\b") {
@@ -855,7 +855,13 @@ var app = (function () {
 
     		if (c === "\n") {
     			acc.push(new String());
+
+    			if (acc.length > scrollBack) {
+    				acc.shift(); // Discard the first line
+    			}
     		}
+
+    		return acc;
     	};
 
     	const normaliseKey = key => {
@@ -882,8 +888,7 @@ var app = (function () {
     		port.write(key, "utf8");
 
     		if (localEcho) {
-    			printToLine(key);
-    			$$invalidate(1, rxData = acc);
+    			$$invalidate(1, rxData = printToLine(key, rxData));
     		}
 
     		// Auto scroll to the bottom on keypress
@@ -905,10 +910,8 @@ var app = (function () {
 
     		port.on("data", chunk => {
     			for (const c of chunk) {
-    				printToLine(String.fromCharCode(c));
+    				$$invalidate(1, rxData = printToLine(String.fromCharCode(c), rxData));
     			}
-
-    			$$invalidate(1, rxData = acc);
     		});
 
     		$$invalidate(3, isConnected = true);
@@ -981,7 +984,8 @@ var app = (function () {
     		"parity",
     		"stopBits",
     		"localEcho",
-    		"isConnected"
+    		"isConnected",
+    		"scrollBack"
     	];
 
     	Object.keys($$props).forEach(key => {
@@ -1002,6 +1006,7 @@ var app = (function () {
     		if ("stopBits" in $$props) $$invalidate(8, stopBits = $$props.stopBits);
     		if ("localEcho" in $$props) $$invalidate(2, localEcho = $$props.localEcho);
     		if ("isConnected" in $$props) $$invalidate(3, isConnected = $$props.isConnected);
+    		if ("scrollBack" in $$props) $$invalidate(9, scrollBack = $$props.scrollBack);
     	};
 
     	$$self.$capture_state = () => ({
@@ -1021,9 +1026,9 @@ var app = (function () {
     		stopBits,
     		localEcho,
     		isConnected,
+    		scrollBack,
     		div,
     		autoscroll,
-    		acc,
     		rxData,
     		port,
     		printToLine,
@@ -1045,9 +1050,9 @@ var app = (function () {
     		if ("stopBits" in $$props) $$invalidate(8, stopBits = $$props.stopBits);
     		if ("localEcho" in $$props) $$invalidate(2, localEcho = $$props.localEcho);
     		if ("isConnected" in $$props) $$invalidate(3, isConnected = $$props.isConnected);
+    		if ("scrollBack" in $$props) $$invalidate(9, scrollBack = $$props.scrollBack);
     		if ("div" in $$props) $$invalidate(0, div = $$props.div);
     		if ("autoscroll" in $$props) autoscroll = $$props.autoscroll;
-    		if ("acc" in $$props) acc = $$props.acc;
     		if ("rxData" in $$props) $$invalidate(1, rxData = $$props.rxData);
     		if ("port" in $$props) port = $$props.port;
     	};
@@ -1066,8 +1071,8 @@ var app = (function () {
     		dataBits,
     		parity,
     		stopBits,
+    		scrollBack,
     		autoscroll,
-    		acc,
     		port,
     		remote,
     		Menu,
@@ -1092,7 +1097,8 @@ var app = (function () {
     			parity: 7,
     			stopBits: 8,
     			localEcho: 2,
-    			isConnected: 3
+    			isConnected: 3,
+    			scrollBack: 9
     		});
 
     		dispatch_dev("SvelteRegisterComponent", {
@@ -1183,6 +1189,14 @@ var app = (function () {
     	}
 
     	set isConnected(value) {
+    		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get scrollBack() {
+    		throw new Error("<Terminal>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set scrollBack(value) {
     		throw new Error("<Terminal>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
     }
