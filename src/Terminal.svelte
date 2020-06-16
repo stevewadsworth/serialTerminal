@@ -14,24 +14,33 @@
 
   export let isConnected = false;
 
+  export let scrollBack = 100000; // Default to 100,000 lines of history
+
   let div;
   let autoscroll;
-  let acc = [""];
-  let rxData = acc;
+  let rxData = [""];
 
   let port;
 
-  const printToLine = (c) => {
+  const printToLine = (c, acc) => {
     let str = acc[acc.length -1]
+
     if (c === '\b') {
       str = str.slice(0, -1)
     } else {
       str += c;
     }
+
     acc[acc.length -1] = str
+
     if (c === '\n') {
       acc.push(new String());
+      if (acc.length > scrollBack) {
+        acc.shift(); // Discard the first line
+      }
     }
+
+    return acc;
   }
 
   const normaliseKey = (key) => {
@@ -57,8 +66,7 @@
     port.write(key, 'utf8');
 
     if (localEcho) {
-      printToLine(key);
-      rxData = acc;
+      rxData = printToLine(key, rxData);
     }
     // Auto scroll to the bottom on keypress
     div.scrollTo(0, div.scrollHeight);
@@ -79,9 +87,8 @@
 
     port.on("data", chunk => {
       for (const c of chunk) {
-        printToLine(String.fromCharCode(c));
+        rxData = printToLine(String.fromCharCode(c), rxData);
       }
-      rxData = acc;
     });
 
     isConnected = true;
