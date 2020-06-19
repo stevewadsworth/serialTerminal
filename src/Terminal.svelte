@@ -128,6 +128,8 @@
 
   // Add a right click context menu
   const menu = new Menu()
+  menu.append(new MenuItem({ label: 'Clear', click() {rxData = [""]}}))
+  menu.append(new MenuItem({ type: 'separator' }))
   menu.append(new MenuItem({ label: 'Local Echo', type: 'checkbox', checked: localEcho, click() {localEcho = !localEcho} }))
   menu.append(new MenuItem({ type: 'separator' }))
   menu.append(new MenuItem({ role: 'selectAll' }))

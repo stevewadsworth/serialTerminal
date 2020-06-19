@@ -712,7 +712,7 @@ var app = (function () {
     	return child_ctx;
     }
 
-    // (167:2) {#each rxData as line}
+    // (169:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
     	let t_value = /*line*/ ctx[21] + "";
@@ -723,7 +723,7 @@ var app = (function () {
     			pre = element("pre");
     			t = text(t_value);
     			attr_dev(pre, "class", "svelte-nmv4vc");
-    			add_location(pre, file, 167, 4, 3640);
+    			add_location(pre, file, 169, 4, 3763);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
@@ -741,7 +741,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(167:2) {#each rxData as line}",
+    		source: "(169:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -767,7 +767,7 @@ var app = (function () {
     			}
 
     			attr_dev(div_1, "class", "svelte-nmv4vc");
-    			add_location(div_1, file, 165, 0, 3589);
+    			add_location(div_1, file, 167, 0, 3712);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -953,6 +953,15 @@ var app = (function () {
 
     	// Add a right click context menu
     	const menu = new Menu();
+
+    	menu.append(new MenuItem({
+    			label: "Clear",
+    			click() {
+    				$$invalidate(1, rxData = [""]);
+    			}
+    		}));
+
+    	menu.append(new MenuItem({ type: "separator" }));
 
     	menu.append(new MenuItem({
     			label: "Local Echo",
@@ -1589,9 +1598,9 @@ var app = (function () {
     			button.disabled = button_disabled_value = /*path*/ ctx[1] === emptyPath;
     			attr_dev(button, "type", "submit");
     			attr_dev(button, "class", "svelte-1vrzg62");
-    			add_location(button, file$2, 62, 1, 1520);
+    			add_location(button, file$2, 62, 1, 1537);
     			attr_dev(form, "class", "svelte-1vrzg62");
-    			add_location(form, file$2, 55, 0, 1050);
+    			add_location(form, file$2, 55, 0, 1067);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -1725,7 +1734,7 @@ var app = (function () {
     	let paths = [];
     	let baudRates = [300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 76800, 115200, 230400];
     	let stopBitsList = [1, 2];
-    	let parityList = ["none", "even", "odd"];
+    	let parityList = ["none", "even", "odd", "mark", "space"];
     	let dataBitsList = [7, 8];
     	let localEchoList = ["no", "yes"];
     	let path = emptyPath;

@@ -10,7 +10,7 @@
   let paths = []
   let baudRates = [300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 76800, 115200, 230400];
   let stopBitsList = [1, 2];
-  let parityList = ['none', 'even', 'odd'];
+  let parityList = ['none', 'even', 'odd', 'mark', 'space'];
   let dataBitsList = [7, 8];
   let localEchoList = ['no', 'yes'];
 
