@@ -17,7 +17,7 @@ div {
 }
 
 select {
-  min-width: 3rem;;
+  min-width: 3rem;
 }
 label {
   font-size: 10px;

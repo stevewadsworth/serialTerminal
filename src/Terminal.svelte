@@ -160,7 +160,7 @@
   div > pre {
     text-align: left;
     margin: 0;
-    font-family: "Courier New", Courier, monospace;
+    font-family: Menlo, "Courier New", Courier, monospace;
     font-size: 14px;
   }
 </style>
