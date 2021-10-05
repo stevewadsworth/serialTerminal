@@ -1,6 +1,7 @@
 <script>
   const { remote } = require('electron')
   const { Menu, MenuItem, clipboard } = remote
+  const stripAnsiStream = require('strip-ansi-stream');
 
   import { onMount, onDestroy, beforeUpdate, afterUpdate } from "svelte";
   import serial from "./modules/serial";
@@ -21,15 +22,16 @@
   let rxData = [""];
 
   let port;
+  const stripAnsi = stripAnsiStream();
 
   const printToLine = (c, acc) => {
     let str = acc[acc.length -1]
 
-    if (c === '\b') {
-      str = str.slice(0, -1)
-    } else {
+ //   if (c === '\b') {
+ //     str = str.slice(0, -1)
+ //   } else {
       str += c;
-    }
+ //   }
 
     acc[acc.length -1] = str
 
@@ -51,6 +53,21 @@
           break
         case 'Backspace':
           key = '\b'
+          break;
+        case 'Escape':
+          key = '\x1B'
+          break;
+        case 'ArrowUp':
+          key = "\x1b[A";
+          break;
+        case 'ArrowDown':
+          key = "\x1b[B";
+          break;
+        case 'ArrowLeft':
+          key = "\x1b[D";
+          break;
+        case 'ArrowRight':
+          key = "\x1b[C";
           break;
         default:
           console.log(key)
@@ -86,7 +103,11 @@
     })
 
     port.on("data", chunk => {
-      for (const c of chunk) {
+      stripAnsi.write(chunk);
+    });
+
+    stripAnsi.on('data', data => {
+      for (const c of data) {
         rxData = printToLine(String.fromCharCode(c), rxData);
       }
     });

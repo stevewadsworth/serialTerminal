@@ -708,14 +708,14 @@ var app = (function () {
 
     function get_each_context(ctx, list, i) {
     	const child_ctx = ctx.slice();
-    	child_ctx[21] = list[i];
+    	child_ctx[23] = list[i];
     	return child_ctx;
     }
 
-    // (169:2) {#each rxData as line}
+    // (190:2) {#each rxData as line}
     function create_each_block(ctx) {
     	let pre;
-    	let t_value = /*line*/ ctx[21] + "";
+    	let t_value = /*line*/ ctx[23] + "";
     	let t;
 
     	const block = {
@@ -723,14 +723,14 @@ var app = (function () {
     			pre = element("pre");
     			t = text(t_value);
     			attr_dev(pre, "class", "svelte-42im3p");
-    			add_location(pre, file, 169, 4, 3770);
+    			add_location(pre, file, 190, 4, 4284);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, pre, anchor);
     			append_dev(pre, t);
     		},
     		p: function update(ctx, dirty) {
-    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[21] + "")) set_data_dev(t, t_value);
+    			if (dirty & /*rxData*/ 2 && t_value !== (t_value = /*line*/ ctx[23] + "")) set_data_dev(t, t_value);
     		},
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(pre);
@@ -741,7 +741,7 @@ var app = (function () {
     		block,
     		id: create_each_block.name,
     		type: "each",
-    		source: "(169:2) {#each rxData as line}",
+    		source: "(190:2) {#each rxData as line}",
     		ctx
     	});
 
@@ -767,7 +767,7 @@ var app = (function () {
     			}
 
     			attr_dev(div_1, "class", "svelte-42im3p");
-    			add_location(div_1, file, 167, 0, 3719);
+    			add_location(div_1, file, 188, 0, 4233);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -779,7 +779,7 @@ var app = (function () {
     				each_blocks[i].m(div_1, null);
     			}
 
-    			/*div_1_binding*/ ctx[20](div_1);
+    			/*div_1_binding*/ ctx[22](div_1);
     		},
     		p: function update(ctx, [dirty]) {
     			if (dirty & /*rxData*/ 2) {
@@ -811,7 +811,7 @@ var app = (function () {
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(div_1);
     			destroy_each(each_blocks, detaching);
-    			/*div_1_binding*/ ctx[20](null);
+    			/*div_1_binding*/ ctx[22](null);
     		}
     	};
 
@@ -829,6 +829,7 @@ var app = (function () {
     function instance($$self, $$props, $$invalidate) {
     	const { remote } = require("electron");
     	const { Menu, MenuItem, clipboard } = remote;
+    	const stripAnsiStream = require("strip-ansi-stream");
     	let { path } = $$props;
     	let { baudRate } = $$props;
     	let { dataBits } = $$props;
@@ -841,16 +842,17 @@ var app = (function () {
     	let autoscroll;
     	let rxData = [""];
     	let port;
+    	const stripAnsi = stripAnsiStream();
 
     	const printToLine = (c, acc) => {
     		let str = acc[acc.length - 1];
 
-    		if (c === "\b") {
-    			str = str.slice(0, -1);
-    		} else {
-    			str += c;
-    		}
+    		//   if (c === '\b') {
+    		//     str = str.slice(0, -1)
+    		//   } else {
+    		str += c;
 
+    		//   }
     		acc[acc.length - 1] = str;
 
     		if (c === "\n") {
@@ -872,6 +874,21 @@ var app = (function () {
     					break;
     				case "Backspace":
     					key = "\b";
+    					break;
+    				case "Escape":
+    					key = "\u001b";
+    					break;
+    				case "ArrowUp":
+    					key = "\u001b[A";
+    					break;
+    				case "ArrowDown":
+    					key = "\u001b[B";
+    					break;
+    				case "ArrowLeft":
+    					key = "\u001b[D";
+    					break;
+    				case "ArrowRight":
+    					key = "\u001b[C";
     					break;
     				default:
     					console.log(key);
@@ -909,7 +926,11 @@ var app = (function () {
     		});
 
     		port.on("data", chunk => {
-    			for (const c of chunk) {
+    			stripAnsi.write(chunk);
+    		});
+
+    		stripAnsi.on("data", data => {
+    			for (const c of data) {
     				$$invalidate(1, rxData = printToLine(String.fromCharCode(c), rxData));
     			}
     		});
@@ -1023,6 +1044,7 @@ var app = (function () {
     		Menu,
     		MenuItem,
     		clipboard,
+    		stripAnsiStream,
     		onMount,
     		onDestroy,
     		beforeUpdate,
@@ -1040,6 +1062,7 @@ var app = (function () {
     		autoscroll,
     		rxData,
     		port,
+    		stripAnsi,
     		printToLine,
     		normaliseKey,
     		keyPressed,
@@ -1087,6 +1110,8 @@ var app = (function () {
     		Menu,
     		MenuItem,
     		clipboard,
+    		stripAnsiStream,
+    		stripAnsi,
     		printToLine,
     		normaliseKey,
     		keyPressed,
